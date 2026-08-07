@@ -156,23 +156,6 @@
                     <!-- Dynamic Details Rows -->
                 </div>
             </div>
-
-            <!-- Web ECI Embedded Viewer Container -->
-            <div id="webeci-container" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden space-y-3">
-                <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                    <h3 class="font-semibold text-gray-800 flex items-center gap-2">
-                        <i data-lucide="globe" class="w-4 h-4 text-indigo-600"></i>
-                        Vista Web El Corte Inglés (WEBECI)
-                    </h3>
-                    <a id="webeci-external-link" href="#" target="_blank" rel="noopener noreferrer" class="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center space-x-1">
-                        <span>Abrir externa</span>
-                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                    </a>
-                </div>
-                <div class="p-2 sm:p-4">
-                    <iframe id="webeci-iframe" class="w-full h-[600px] border border-gray-200 rounded-xl bg-gray-50" src="" loading="lazy"></iframe>
-                </div>
-            </div>
         </section>
     </main>
 
@@ -273,7 +256,6 @@
             });
         }
 
-        // Función para limpiar tildes y caracteres mojibake mal codificados
         function cleanMojibake(str) {
             if (!str || typeof str !== 'string') return str;
 
@@ -331,8 +313,6 @@
                         if (!isNaN(num)) val = num.toLocaleString('fullwide', {useGrouping:false});
                     }
                     if (val.endsWith('.0')) val = val.slice(0, -2);
-                    
-                    // Saneamiento de caracteres
                     val = cleanMojibake(val);
                     item[key.trim()] = val;
                 }
@@ -344,7 +324,6 @@
             document.getElementById('view-product').classList.add('hidden');
             document.getElementById('view-search').classList.remove('hidden');
             document.getElementById('btn-back').classList.add('hidden');
-            document.getElementById('webeci-iframe').src = '';
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -443,22 +422,6 @@
                     <div class="w-full sm:w-2/3 text-sm">${valHTML}</div>
                 `;
                 detailsTable.appendChild(row);
-            }
-
-            // Cargar automáticamente WEBECI en el iframe si existe la URL
-            const webEciUrl = item.WEBECI || '';
-            const webEciContainer = document.getElementById('webeci-container');
-            const webEciIframe = document.getElementById('webeci-iframe');
-            const webEciExternalLink = document.getElementById('webeci-external-link');
-
-            if (webEciUrl && webEciUrl.startsWith('http')) {
-                webEciIframe.src = webEciUrl;
-                webEciExternalLink.href = webEciUrl;
-                webEciContainer.classList.remove('hidden');
-            } else {
-                webEciIframe.src = '';
-                webEciExternalLink.href = '#';
-                webEciContainer.classList.add('hidden');
             }
 
             lucide.createIcons();
