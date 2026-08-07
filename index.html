@@ -16,8 +16,6 @@
     <script src="https://unpkg.com/html5-qrcode"></script>
     <!-- PapaParse -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- CryptoJS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <style>
         body {
@@ -257,25 +255,62 @@
             attemptDecryptWithPassword(password, false);
         }
 
-        function attemptDecryptWithPassword(password, isAuto) {
+        // Función de descifrado mediante la API nativa Web Crypto (PBKDF2 + AES-GCM 256)
+        async function decryptBuffer(arrayBuffer, password) {
+            if (arrayBuffer.byteLength < 28) {
+                throw new Error("Archivo demasiado corto");
+            }
+
+            const salt = arrayBuffer.slice(0, 16);
+            const iv = arrayBuffer.slice(16, 28);
+            const data = arrayBuffer.slice(28);
+
+            const enc = new TextEncoder();
+            const passwordKey = await window.crypto.subtle.importKey(
+                "raw",
+                enc.encode(password),
+                { name: "PBKDF2" },
+                false,
+                ["deriveKey"]
+            );
+
+            const key = await window.crypto.subtle.deriveKey(
+                {
+                    name: "PBKDF2",
+                    salt: new Uint8Array(salt),
+                    iterations: 100000,
+                    hash: "SHA-256"
+                },
+                passwordKey,
+                { name: "AES-GCM", length: 256 },
+                false,
+                ["decrypt"]
+            );
+
+            const decryptedContent = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: new Uint8Array(iv) },
+                key,
+                data
+            );
+
+            const dec = new TextDecoder("utf-8");
+            return dec.decode(decryptedContent);
+        }
+
+        async function attemptDecryptWithPassword(password, isAuto) {
             let loadedCount = 0;
             let combinedData = [];
             let hasError = false;
 
-            ENCRYPTED_CSV_FILES.forEach(url => {
-                fetch(url)
-                    .then(res => {
-                        if (!res.ok) throw new Error("Archivo no encontrado");
-                        return res.text();
-                    })
-                    .then(encryptedContent => {
-                        const bytes = CryptoJS.AES.decrypt(encryptedContent, password);
-                        const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+            for (const url of ENCRYPTED_CSV_FILES) {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error("Archivo no encontrado");
+                    const arrayBuffer = await res.arrayBuffer();
 
-                        if (!decryptedText) {
-                            throw new Error("Clave incorrecta");
-                        }
+                    const decryptedText = await decryptBuffer(arrayBuffer, password);
 
+                    await new Promise((resolve) => {
                         Papa.parse(decryptedText, {
                             header: true,
                             skipEmptyLines: true,
@@ -283,26 +318,28 @@
                                 if (results.data && results.data.length > 0) {
                                     combinedData = combinedData.concat(processRawData(results.data, url));
                                 }
-                                loadedCount++;
-                                if (loadedCount === ENCRYPTED_CSV_FILES.length && !hasError) {
-                                    localStorage.setItem(STORAGE_KEY, password);
-                                    finishUnlock(combinedData);
-                                }
+                                resolve();
                             }
                         });
-                    })
-                    .catch(err => {
-                        if (!hasError) {
-                            hasError = true;
-                            localStorage.removeItem(STORAGE_KEY);
-                            if (isAuto) {
-                                promptForPassword();
-                            } else {
-                                alert("Contraseña incorrecta o los archivos han cambiado.");
-                            }
-                        }
                     });
-            });
+                } catch (err) {
+                    hasError = true;
+                    console.warn("Error descifrando:", url, err);
+                    break;
+                }
+            }
+
+            if (!hasError && combinedData.length > 0) {
+                localStorage.setItem(STORAGE_KEY, password);
+                finishUnlock(combinedData);
+            } else {
+                localStorage.removeItem(STORAGE_KEY);
+                if (isAuto) {
+                    promptForPassword();
+                } else {
+                    alert("Contraseña incorrecta o los archivos no se han podido descifrar.");
+                }
+            }
         }
 
         function finishUnlock(data) {
