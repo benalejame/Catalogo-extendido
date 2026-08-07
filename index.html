@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Buscador de Productos & EAN Scanner</title>
+    <title>Catálogo Extendido Cifrado</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -14,8 +14,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- Html5-QRCode Scanner -->
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <!-- PapaParse para parsear CSV -->
+    <!-- PapaParse -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- CryptoJS para Desencriptación -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <style>
         body {
@@ -87,12 +89,10 @@
                     </button>
                 </div>
 
-                <!-- Secondary Actions (Upload multiple CSVs) -->
-                <div class="flex justify-end pt-0.5">
-                    <label title="Cargar CSVs locales" class="p-1.5 text-gray-400 hover:text-indigo-600 cursor-pointer transition rounded-lg hover:bg-gray-50 flex items-center justify-center">
-                        <i data-lucide="file-up" class="w-4 h-4"></i>
-                        <input type="file" id="csv-file-input" accept=".csv" multiple class="hidden" onchange="handleFileUpload(event)">
-                    </label>
+                <!-- Unlock Status / Re-enter Key -->
+                <div class="flex justify-between items-center pt-0.5 text-xs text-gray-400">
+                    <span id="lock-status">Catálogo protegido</span>
+                    <button onclick="promptForPassword()" class="hover:text-indigo-600 underline">Cambiar Contraseña</button>
                 </div>
             </div>
 
@@ -102,10 +102,8 @@
                 <span id="search-query-display" class="italic truncate max-w-[200px]"></span>
             </div>
 
-            <!-- Results List (Live updating as you type) -->
-            <div id="results-list" class="space-y-2">
-                <!-- Dynamic Items Inserted Here -->
-            </div>
+            <!-- Results List -->
+            <div id="results-list" class="space-y-2"></div>
 
             <!-- Empty State -->
             <div id="empty-state" class="text-center py-12 px-4 space-y-3">
@@ -113,43 +111,30 @@
                     <i data-lucide="search-x" class="w-8 h-8"></i>
                 </div>
                 <h3 class="text-lg font-medium text-gray-800">Escribe, habla o escanea para buscar</h3>
-                <p class="text-sm text-gray-500 max-w-sm mx-auto">Busca en todos los catálogos cargados (570.csv y Apple.csv).</p>
+                <p class="text-sm text-gray-500 max-w-sm mx-auto">Introduce la clave de acceso para desbloquear la búsqueda.</p>
             </div>
         </section>
 
         <!-- VIEW 2: PRODUCT DETAIL PAGE -->
         <section id="view-product" class="hidden space-y-6">
-            <!-- Product Header Card -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 space-y-4">
                 <div class="flex items-start justify-between gap-4">
                     <div>
-                        <span id="prod-marca" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 uppercase tracking-wide mb-2">
-                            MARCA
-                        </span>
+                        <span id="prod-marca" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 uppercase tracking-wide mb-2">MARCA</span>
                         <h2 id="prod-descripcion" class="text-xl sm:text-2xl font-bold text-gray-900 leading-tight"></h2>
                     </div>
                 </div>
-
-                <!-- Main Badges -->
-                <div class="flex flex-wrap gap-2 pt-1" id="prod-quick-specs">
-                    <!-- Badges -->
-                </div>
+                <div class="flex flex-wrap gap-2 pt-1" id="prod-quick-specs"></div>
             </div>
 
-            <!-- EAN Interactive Barcodes Section -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 space-y-4">
                 <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                     <i data-lucide="qr-code" class="w-4 h-4 text-indigo-600"></i>
                     Generador de Códigos
                 </h3>
-                <p class="text-xs text-gray-500">Haz clic en los botones para generar el código de barras o QR escaneable.</p>
-                
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="ean-buttons-container">
-                    <!-- EAN Action Buttons -->
-                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="ean-buttons-container"></div>
             </div>
 
-            <!-- Full Product Details Table / List -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                     <h3 class="font-semibold text-gray-800 flex items-center gap-2">
@@ -157,12 +142,25 @@
                         Ficha Completa de Datos
                     </h3>
                 </div>
-                <div class="divide-y divide-gray-100 text-sm" id="prod-details-table">
-                    <!-- Dynamic Details Rows -->
-                </div>
+                <div class="divide-y divide-gray-100 text-sm" id="prod-details-table"></div>
             </div>
         </section>
     </main>
+
+    <!-- MODAL: PASSWORD PROMPT -->
+    <div id="modal-password" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-center">
+            <div class="inline-flex p-3 bg-indigo-50 text-indigo-600 rounded-full mb-1">
+                <i data-lucide="lock" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900">Acceso Protegido</h3>
+            <p class="text-xs text-gray-500">Introduce la contraseña para descifrar la base de datos en memoria.</p>
+            <input type="password" id="app-password" placeholder="Contraseña secreta" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-sm" onkeydown="if(event.key==='Enter') unlockDatabase()">
+            <button onclick="unlockDatabase()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
+                Desbloquear Catálogo
+            </button>
+        </div>
+    </div>
 
     <!-- MODAL: CAMERA SCANNER -->
     <div id="modal-scanner" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
@@ -172,45 +170,31 @@
                     <i data-lucide="camera" class="w-5 h-5"></i>
                     <h3 class="font-semibold">Escanear Código EAN 13</h3>
                 </div>
-                <button onclick="stopScanner()" class="p-1 rounded-lg hover:bg-indigo-700 transition">
-                    <i data-lucide="x" class="w-6 h-6"></i>
-                </button>
+                <button onclick="stopScanner()" class="p-1 rounded-lg hover:bg-indigo-700 transition"><i data-lucide="x" class="w-6 h-6"></i></button>
             </div>
             <div class="p-4 flex-grow flex flex-col items-center justify-center bg-black relative">
                 <div id="interactive-reader" class="w-full"></div>
-                <p class="text-xs text-gray-400 mt-2 text-center">Apunta con la cámara al código de barras del producto</p>
             </div>
             <div class="p-4 bg-gray-50 flex justify-end">
-                <button onclick="stopScanner()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-sm font-medium transition">
-                    Cancelar
-                </button>
+                <button onclick="stopScanner()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-xl text-sm font-medium">Cancelar</button>
             </div>
         </div>
     </div>
 
-    <!-- MODAL: BARCODE / QR CODE DISPLAY -->
+    <!-- MODAL: BARCODE / QR DISPLAY -->
     <div id="modal-code" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
         <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 relative">
-            <button onclick="closeCodeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1">
-                <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
+            <button onclick="closeCodeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1"><i data-lucide="x" class="w-6 h-6"></i></button>
             <div>
-                <span id="modal-code-type" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 uppercase tracking-wider mb-1">
-                    CÓDIGO DE BARRAS
-                </span>
+                <span id="modal-code-type" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 uppercase tracking-wider mb-1">CÓDIGO DE BARRAS</span>
                 <h3 id="modal-code-title" class="text-lg font-bold text-gray-900">EAN-13</h3>
                 <p id="modal-code-val" class="text-sm font-mono text-gray-600 mt-0.5"></p>
             </div>
-
-            <!-- Display Container -->
             <div class="py-4 px-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center min-h-[160px]">
                 <svg id="barcode-svg" class="hidden max-w-full h-auto"></svg>
                 <div id="qrcode-div" class="hidden"></div>
             </div>
-
-            <button onclick="closeCodeModal()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
-                Cerrar
-            </button>
+            <button onclick="closeCodeModal()" class="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold">Cerrar</button>
         </div>
     </div>
 
@@ -222,146 +206,99 @@
         let speechRecognition = null;
         let isListening = false;
 
-        const DEFAULT_CSV_FILES = ['570.csv', 'Apple.csv'];
+        const ENCRYPTED_CSV_FILES = ['570.csv.enc', 'Apple.csv.enc'];
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
-            loadMultipleCSVs(DEFAULT_CSV_FILES);
         });
 
-        function loadMultipleCSVs(fileUrls) {
+        function promptForPassword() {
+            document.getElementById('modal-password').classList.remove('hidden');
+            document.getElementById('app-password').focus();
+        }
+
+        function unlockDatabase() {
+            const password = document.getElementById('app-password').value;
+            if (!password) {
+                alert("Introduce la contraseña.");
+                return;
+            }
+
             let loadedCount = 0;
             let combinedData = [];
+            let hasError = false;
 
-            fileUrls.forEach(url => {
-                Papa.parse(url, {
-                    download: true,
-                    header: true,
-                    skipEmptyLines: true,
-                    encoding: "UTF-8",
-                    complete: function(results) {
-                        if (results.data && results.data.length > 0) {
-                            const processed = processRawData(results.data, url);
-                            combinedData = combinedData.concat(processed);
+            ENCRYPTED_CSV_FILES.forEach(url => {
+                fetch(url)
+                    .then(res => {
+                        if (!res.ok) throw new Error("No encontrado");
+                        return res.text();
+                    })
+                    .then(encryptedContent => {
+                        const bytes = CryptoJS.AES.decrypt(encryptedContent, password);
+                        const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+
+                        if (!decryptedText) {
+                            throw new Error("Clave incorrecta");
                         }
-                        loadedCount++;
-                        if (loadedCount === fileUrls.length) {
-                            productDatabase = combinedData;
-                        }
-                    },
-                    error: function(err) {
-                        console.warn(`No se pudo cargar el CSV automático (${url}):`, err);
-                        loadedCount++;
-                        if (loadedCount === fileUrls.length) {
-                            productDatabase = combinedData;
-                        }
-                    }
-                });
+
+                        Papa.parse(decryptedText, {
+                            header: true,
+                            skipEmptyLines: true,
+                            complete: function(results) {
+                                if (results.data && results.data.length > 0) {
+                                    combinedData = combinedData.concat(processRawData(results.data, url));
+                                }
+                                loadedCount++;
+                                if (loadedCount === ENCRYPTED_CSV_FILES.length) {
+                                    finishUnlock(combinedData);
+                                }
+                            }
+                        });
+                    })
+                    .catch(err => {
+                        hasError = true;
+                        alert("Contraseña incorrecta o error cargando " + url);
+                    });
             });
         }
 
-        function handleFileUpload(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-
-            let loadedCount = 0;
-            let combinedData = [];
-
-            Array.from(files).forEach(file => {
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    encoding: "UTF-8",
-                    complete: function(results) {
-                        if (results.data && results.data.length > 0) {
-                            const processed = processRawData(results.data, file.name);
-                            combinedData = combinedData.concat(processed);
-                        }
-                        loadedCount++;
-                        if (loadedCount === files.length) {
-                            productDatabase = combinedData;
-                            if (document.getElementById('search-input').value.trim().length > 0) {
-                                handleSearchInput();
-                            }
-                        }
-                    }
-                });
-            });
+        function finishUnlock(data) {
+            productDatabase = data;
+            document.getElementById('modal-password').classList.add('hidden');
+            document.getElementById('lock-status').innerText = `${productDatabase.length.toLocaleString()} productos descifrados`;
+            document.getElementById('lock-status').classList.add('text-emerald-600', 'font-medium');
+            if (document.getElementById('search-input').value.trim().length > 0) {
+                handleSearchInput();
+            }
         }
 
         function cleanMojibake(str) {
             if (!str || typeof str !== 'string') return str;
-
             let cur = str;
-
             for (let i = 0; i < 4; i++) {
                 if (cur.includes('Ã') || cur.includes('Â')) {
                     try {
                         let decoded = decodeURIComponent(escape(cur));
-                        if (decoded && decoded !== cur) {
-                            cur = decoded;
-                        } else {
-                            break;
-                        }
-                    } catch (e) {
-                        break;
-                    }
-                } else {
-                    break;
-                }
+                        if (decoded && decoded !== cur) cur = decoded;
+                        else break;
+                    } catch (e) { break; }
+                } else break;
             }
-
             return cur
-                .replace(/ï¿½/g, 'Á')
-                .replace(/Ã‘/g, 'Ñ')
-                .replace(/Ã“/g, 'Ó')
-                .replace(/Ãš/g, 'Ú')
-                .replace(/Ã/g, 'Á')
-                .replace(/Ã‰/g, 'É')
-                .replace(/Ã/g, 'Í')
-                .replace(/Ã³/g, 'ó')
-                .replace(/Ãº/g, 'ú')
-                .replace(/Ã¡/g, 'á')
-                .replace(/Ã©/g, 'é')
-                .replace(/Ã­/g, 'í')
-                .replace(/Ã±/g, 'ñ')
-                .replace(/\x81/g, 'Á')
-                .replace(/\x82/g, 'Á')
-                .replace(/\x8d/g, 'Í')
-                .replace(/\x93/g, 'Ó')
-                .replace(/\x9a/g, 'Ú')
-                .replace(/Â/g, '')
-                .replace(/\u00A0/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+                .replace(/ï¿½/g, 'Á').replace(/Ã‘/g, 'Ñ').replace(/Ã“/g, 'Ó').replace(/Ãš/g, 'Ú')
+                .replace(/Ã/g, 'Á').replace(/Ã‰/g, 'É').replace(/Ã/g, 'Í').replace(/Ã³/g, 'ó')
+                .replace(/Ãº/g, 'ú').replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
+                .replace(/Ã±/g, 'ñ').replace(/\x81/g, 'Á').replace(/\x82/g, 'Á').replace(/\x8d/g, 'Í')
+                .replace(/\x93/g, 'Ó').replace(/\x9a/g, 'Ú').replace(/Â/g, '').replace(/\u00A0/g, ' ')
+                .replace(/\s+/g, ' ').trim();
         }
 
-        // Función para convertir números dictados en texto a números digitales (en español)
         function convertSpanishWordsToDigits(str) {
             if (!str || typeof str !== 'string') return '';
-
-            const units = {
-                'cero': 0, 'uno': 1, 'un': 1, 'una': 1, 'dos': 2, 'tres': 3, 'cuatro': 4,
-                'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9, 'diez': 10,
-                'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14, 'quince': 15,
-                'dieciséis': 16, 'dieciseis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19,
-                'veinte': 20, 'veintiuno': 21, 'veintidós': 22, 'veintidos': 22, 'veintitrés': 23, 'veintitres': 23,
-                'veinticuatro': 24, 'veinticinco': 25, 'veintiséis': 26, 'veintiseis': 26, 'veintisiete': 27,
-                'veintiocho': 28, 'veintinueve': 29
-            };
-
-            const tens = {
-                'treinta': 30, 'cuarenta': 40, 'cincuenta': 50, 'sesenta': 60,
-                'setenta': 70, 'ochenta': 80, 'noventa': 90
-            };
-
-            const hundreds = {
-                'cien': 100, 'ciento': 100, 'doscientos': 200, 'doscientas': 200,
-                'trescientos': 300, 'trescientas': 300, 'cuatrocientos': 400, 'cuatrocientas': 400,
-                'quinientos': 500, 'quinientas': 500, 'seiscientos': 600, 'seiscientas': 600,
-                'setecientos': 700, 'setecientas': 700, 'ochocientos': 800, 'ochocientas': 800,
-                'novecientos': 900, 'novecientas': 900
-            };
+            const units = {'cero': 0, 'uno': 1, 'un': 1, 'una': 1, 'dos': 2, 'tres': 3, 'cuatro': 4, 'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9, 'diez': 10, 'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14, 'quince': 15, 'dieciséis': 16, 'dieciseis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19, 'veinte': 20, 'veintiuno': 21, 'veintidós': 22, 'veintidos': 22, 'veintitrés': 23, 'veintitres': 23, 'veinticuatro': 24, 'veinticinco': 25, 'veintiséis': 26, 'veintiseis': 26, 'veintisiete': 27, 'veintiocho': 28, 'veintinueve': 29};
+            const tens = {'treinta': 30, 'cuarenta': 40, 'cincuenta': 50, 'sesenta': 60, 'setenta': 70, 'ochenta': 80, 'noventa': 90};
+            const hundreds = {'cien': 100, 'ciento': 100, 'doscientos': 200, 'doscientas': 200, 'trescientos': 300, 'trescientas': 300, 'cuatrocientos': 400, 'cuatrocientas': 400, 'quinientos': 500, 'quinientas': 500, 'seiscientos': 600, 'seiscientas': 600, 'setecientos': 700, 'setecientas': 700, 'ochocientos': 800, 'ochocientas': 800, 'novecientos': 900, 'novecientas': 900};
 
             let cleanText = str.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ");
             let words = cleanText.split(/\s+/).filter(w => w.length > 0);
@@ -373,50 +310,21 @@
                 let val = 0;
                 let hasNum = false;
 
-                if (hundreds.hasOwnProperty(w)) {
-                    val += hundreds[w];
-                    hasNum = true;
-                    i++;
-                    if (i < words.length) w = words[i];
-                }
-
+                if (hundreds.hasOwnProperty(w)) { val += hundreds[w]; hasNum = true; i++; if (i < words.length) w = words[i]; }
                 if (tens.hasOwnProperty(w)) {
-                    val += tens[w];
-                    hasNum = true;
-                    i++;
-                    if (i < words.length && words[i] === 'y') {
-                        i++;
-                        if (i < words.length && units.hasOwnProperty(words[i])) {
-                            val += units[words[i]];
-                            i++;
-                        }
-                    } else if (i < words.length && units.hasOwnProperty(words[i])) {
-                        val += units[words[i]];
-                        i++;
-                    }
-                } else if (units.hasOwnProperty(w)) {
-                    val += units[w];
-                    hasNum = true;
-                    i++;
-                }
+                    val += tens[w]; hasNum = true; i++;
+                    if (i < words.length && words[i] === 'y') { i++; if (i < words.length && units.hasOwnProperty(words[i])) { val += units[words[i]]; i++; } }
+                    else if (i < words.length && units.hasOwnProperty(words[i])) { val += units[words[i]]; i++; }
+                } else if (units.hasOwnProperty(w)) { val += units[w]; hasNum = true; i++; }
 
-                if (hasNum) {
-                    newWords.push(String(val));
-                } else {
-                    newWords.push(words[i]);
-                    i++;
-                }
+                if (hasNum) newWords.push(String(val));
+                else { newWords.push(words[i]); i++; }
             }
-
-            let result = newWords.join(' ');
-            // Agrupar dígitos consecutivos sueltos si el usuario dicta dígito por dígito (ej. "8 4 0" -> "840")
-            result = result.replace(/(?<=\b\d)\s+(?=\d\b)/g, '');
-            return result;
+            return newWords.join(' ').replace(/(?<=\b\d)\s+(?=\d\b)/g, '');
         }
 
         function processRawData(data, sourceName) {
             const isAppleSource = sourceName.toLowerCase().includes('apple');
-
             return data.map(row => {
                 const item = {};
                 for (let key in row) {
@@ -429,22 +337,17 @@
                     val = cleanMojibake(val);
                     item[key.trim()] = val;
                 }
-
                 if (!item.MARCA || item.MARCA.trim() === '') {
                     const desc = (item.DESCRIPCION || '').toUpperCase();
                     if (isAppleSource || desc.includes('APPLE') || desc.includes('IPHONE') || desc.includes('IPAD') || desc.includes('MACBOOK') || desc.includes('AIRPODS') || desc.includes('WATCH')) {
                         item.MARCA = 'APPLE';
-                    } else {
-                        item.MARCA = 'GENERAL';
-                    }
+                    } else item.MARCA = 'GENERAL';
                 }
-
                 item._color = item.COLOR || '';
                 item._capacidad = item.CAPACIDAD || '';
                 item._pantalla = item.PANTALLA || item.TAM || item.CAJA || '';
                 item._modelo_ref = item.MOD || item.DIBUJO || '';
                 item._precio = item['PVP TARIFA'] ? (item['PVP TARIFA'] + ' €') : '';
-
                 return item;
             });
         }
@@ -465,7 +368,6 @@
 
             const specsContainer = document.getElementById('prod-quick-specs');
             specsContainer.innerHTML = '';
-            
             const badges = [
                 { label: 'Color', val: item._color, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
                 { label: 'Capacidad', val: item._capacidad, color: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -485,7 +387,6 @@
 
             const eanContainer = document.getElementById('ean-buttons-container');
             eanContainer.innerHTML = '';
-
             let hasCode = false;
 
             const eanVal = item.EAN || item.EAN2;
@@ -498,11 +399,9 @@
                         <span class="text-xs font-bold text-gray-500">Código EAN (Barras)</span>
                         <span class="text-xs font-mono font-semibold text-gray-800">${eanVal}</span>
                     </div>
-                    <button onclick="showBarcode('${eanVal}', 'Código EAN')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white hover:bg-indigo-50 border border-gray-300 hover:border-indigo-300 text-indigo-700 rounded-lg text-xs font-semibold transition shadow-sm">
-                        <i data-lucide="barcode" class="w-4 h-4"></i>
-                        <span>Generar Código de Barras</span>
-                    </button>
-                `;
+                    <button onclick="showBarcode('${eanVal}', 'Código EAN')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white border border-gray-300 text-indigo-700 rounded-lg text-xs font-semibold">
+                        <i data-lucide="barcode" class="w-4 h-4"></i><span>Generar Código de Barras</span>
+                    </button>`;
                 eanContainer.appendChild(card);
             }
 
@@ -516,121 +415,65 @@
                         <span class="text-xs font-bold text-gray-500">Código EANI (QR)</span>
                         <span class="text-xs font-mono font-semibold text-gray-800">${eaniVal}</span>
                     </div>
-                    <button onclick="showQRCode('${eaniVal}', 'Código EANI')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white hover:bg-indigo-50 border border-gray-300 hover:border-indigo-300 text-indigo-700 rounded-lg text-xs font-semibold transition shadow-sm">
-                        <i data-lucide="qr-code" class="w-4 h-4"></i>
-                        <span>Generar Código QR</span>
-                    </button>
-                `;
+                    <button onclick="showQRCode('${eaniVal}', 'Código EANI')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white border border-gray-300 text-indigo-700 rounded-lg text-xs font-semibold">
+                        <i data-lucide="qr-code" class="w-4 h-4"></i><span>Generar Código QR</span>
+                    </button>`;
                 eanContainer.appendChild(card);
             }
 
-            if (!hasCode) {
-                eanContainer.innerHTML = `<p class="text-xs text-gray-400 italic col-span-2">No hay códigos EAN o EANI disponibles para este producto.</p>`;
-            }
+            if (!hasCode) eanContainer.innerHTML = `<p class="text-xs text-gray-400 italic col-span-2">No hay códigos EAN o EANI disponibles.</p>`;
 
             const detailsTable = document.getElementById('prod-details-table');
             detailsTable.innerHTML = '';
-
             for (const [key, val] of Object.entries(item)) {
                 if (key.startsWith('_') || !val) continue;
-
                 const row = document.createElement('div');
                 row.className = "flex flex-col sm:flex-row px-5 py-3 sm:items-center hover:bg-gray-50/80 transition";
-                
                 let valHTML = `<span class="text-gray-900 font-medium">${val}</span>`;
-
                 if (val.startsWith('http://') || val.startsWith('https://')) {
-                    valHTML = `
-                        <a href="${val}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1.5 text-indigo-600 hover:text-indigo-800 font-medium break-all hover:underline">
-                            <span>${val}</span>
-                            <i data-lucide="external-link" class="w-3.5 h-3.5 flex-shrink-0"></i>
-                        </a>
-                    `;
+                    valHTML = `<a href="${val}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1.5 text-indigo-600 hover:underline"><span>${val}</span><i data-lucide="external-link" class="w-3.5 h-3.5 flex-shrink-0"></i></a>`;
                 }
-
-                row.innerHTML = `
-                    <div class="w-full sm:w-1/3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-0">${key}</div>
-                    <div class="w-full sm:w-2/3 text-sm">${valHTML}</div>
-                `;
+                row.innerHTML = `<div class="w-full sm:w-1/3 text-xs font-semibold text-gray-500 uppercase mb-1 sm:mb-0">${key}</div><div class="w-full sm:w-2/3 text-sm">${valHTML}</div>`;
                 detailsTable.appendChild(row);
             }
 
             lucide.createIcons();
-
             document.getElementById('view-search').classList.add('hidden');
             document.getElementById('view-product').classList.remove('hidden');
             document.getElementById('btn-back').classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        function handleSearchKeyDown(event) {
-            if (event.key === 'Enter') {
-                event.target.blur();
-            }
-        }
+        function handleSearchKeyDown(event) { if (event.key === 'Enter') event.target.blur(); }
 
         function handleSearchInput() {
             const query = document.getElementById('search-input').value.trim();
             const clearBtn = document.getElementById('btn-clear-search');
-
-            if (query.length > 0) {
-                clearBtn.classList.remove('hidden');
-                performSearch(query);
-            } else {
-                clearBtn.classList.add('hidden');
-                resetSearch();
-            }
+            if (query.length > 0) { clearBtn.classList.remove('hidden'); performSearch(query); }
+            else { clearBtn.classList.add('hidden'); resetSearch(); }
         }
 
-        function clearSearch() {
-            document.getElementById('search-input').value = '';
-            handleSearchInput();
-        }
-
-        function resetSearch() {
-            currentResults = [];
-            document.getElementById('results-list').innerHTML = '';
-            document.getElementById('results-header').classList.add('hidden');
-            document.getElementById('empty-state').classList.remove('hidden');
-        }
+        function clearSearch() { document.getElementById('search-input').value = ''; handleSearchInput(); }
+        function resetSearch() { currentResults = []; document.getElementById('results-list').innerHTML = ''; document.getElementById('results-header').classList.add('hidden'); document.getElementById('empty-state').classList.remove('hidden'); }
 
         function performSearch(query) {
             if (!productDatabase || productDatabase.length === 0) return;
-
             const terms = query.toLowerCase().split(/\s+/).filter(t => t.trim().length > 0);
-            if (terms.length === 0) {
-                resetSearch();
-                return;
-            }
+            if (terms.length === 0) { resetSearch(); return; }
 
             const scored = [];
-
             for (let i = 0; i < productDatabase.length; i++) {
                 const item = productDatabase[i];
-
-                const fullText = Object.values(item)
-                    .filter(val => val != null)
-                    .map(val => String(val).toLowerCase())
-                    .join(' ');
-
-                const matchesAll = terms.every(term => fullText.includes(term));
-
-                if (matchesAll) {
+                const fullText = Object.values(item).filter(val => val != null).map(val => String(val).toLowerCase()).join(' ');
+                if (terms.every(term => fullText.includes(term))) {
                     let score = 0;
                     const desc = (item.DESCRIPCION || '').toLowerCase();
-
-                    terms.forEach(term => {
-                        if (desc.startsWith(term)) score += 50;
-                        else if (desc.includes(term)) score += 20;
-                    });
-
+                    terms.forEach(term => { if (desc.startsWith(term)) score += 50; else if (desc.includes(term)) score += 20; });
                     scored.push({ item, score });
                 }
             }
-
             scored.sort((a, b) => b.score - a.score);
             currentResults = scored.map(s => s.item);
-
             renderResults(query);
         }
 
@@ -638,28 +481,24 @@
             const list = document.getElementById('results-list');
             const emptyState = document.getElementById('empty-state');
             const resultsHeader = document.getElementById('results-header');
-
             list.innerHTML = '';
 
             if (currentResults.length === 0) {
-                emptyState.classList.remove('hidden');
-                resultsHeader.classList.add('hidden');
+                emptyState.classList.remove('hidden'); resultsHeader.classList.add('hidden');
                 emptyState.querySelector('h3').innerText = 'No se encontraron resultados';
                 emptyState.querySelector('p').innerText = `No hay ningún registro que coincida con "${query}"`;
                 return;
             }
 
-            emptyState.classList.add('hidden');
-            resultsHeader.classList.remove('hidden');
+            emptyState.classList.add('hidden'); resultsHeader.classList.remove('hidden');
             document.getElementById('results-count').innerText = currentResults.length;
             document.getElementById('search-query-display').innerText = `"${query}"`;
 
             const limit = Math.min(currentResults.length, 50);
-
             for (let i = 0; i < limit; i++) {
                 const item = currentResults[i];
                 const card = document.createElement('div');
-                card.className = "bg-white p-3 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-400 hover:shadow-md transition cursor-pointer flex items-center justify-between gap-2";
+                card.className = "bg-white p-3 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-400 transition cursor-pointer flex items-center justify-between gap-2";
                 card.onclick = () => navToProduct(i);
 
                 card.innerHTML = `
@@ -671,44 +510,22 @@
                             ${item._pantalla ? `<span class="text-xs text-gray-400">${item._pantalla}</span>` : ''}
                             ${item._precio ? `<span class="text-xs font-semibold text-emerald-600">${item._precio}</span>` : ''}
                         </div>
-                        <h4 class="font-semibold text-sm text-gray-900 truncate leading-snug group-hover:text-indigo-600 transition">${item.DESCRIPCION || 'Sin descripción'}</h4>
+                        <h4 class="font-semibold text-sm text-gray-900 truncate leading-snug">${item.DESCRIPCION || 'Sin descripción'}</h4>
                         ${item.EAN ? `<p class="text-[11px] font-mono text-gray-400 truncate">EAN: ${item.EAN}</p>` : ''}
                     </div>
-
                     <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        ${item.EANI ? `
-                            <button onclick="event.stopPropagation(); showQRCode('${item.EANI}', 'Código EANI')" title="Ver QR de EANI" class="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-lg transition active:scale-95 flex items-center justify-center">
-                                <i data-lucide="qr-code" class="w-4 h-4"></i>
-                            </button>
-                        ` : ''}
+                        ${item.EANI ? `<button onclick="event.stopPropagation(); showQRCode('${item.EANI}', 'Código EANI')" class="p-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg flex items-center justify-center"><i data-lucide="qr-code" class="w-4 h-4"></i></button>` : ''}
                         <i data-lucide="chevron-right" class="w-4 h-4 text-indigo-600"></i>
-                    </div>
-                `;
+                    </div>`;
                 list.appendChild(card);
             }
-
-            if (currentResults.length > 50) {
-                const notice = document.createElement('p');
-                notice.className = "text-center text-xs text-gray-400 pt-1 pb-2";
-                notice.innerText = `Mostrando las 50 coincidencias más cercanas de ${currentResults.length}.`;
-                list.appendChild(notice);
-            }
-
             lucide.createIcons();
         }
 
-        // Reconocimiento de Voz (Web Speech API con conversión de palabras a dígitos)
         function toggleVoiceSearch() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("Tu navegador no soporta el reconocimiento de voz. Prueba con Google Chrome o Safari en tu móvil.");
-                return;
-            }
-
-            if (isListening && speechRecognition) {
-                speechRecognition.stop();
-                return;
-            }
+            if (!SpeechRecognition) { alert("Navegador no compatible con voz."); return; }
+            if (isListening && speechRecognition) { speechRecognition.stop(); return; }
 
             speechRecognition = new SpeechRecognition();
             speechRecognition.lang = 'es-ES';
@@ -720,32 +537,20 @@
 
             speechRecognition.onstart = function() {
                 isListening = true;
-                micBtn.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+                micBtn.classList.remove('bg-gray-100', 'text-gray-600');
                 micBtn.classList.add('bg-red-500', 'text-white', 'animate-pulse');
-                searchInput.placeholder = 'Escuchando... habla ahora';
+                searchInput.placeholder = 'Escuchando...';
             };
 
             speechRecognition.onresult = function(event) {
                 let transcript = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    transcript += event.results[i][0].transcript;
-                }
-                
-                // Conversión de palabras numéricas dictadas a dígitos numéricos
-                let digitizedText = convertSpanishWordsToDigits(transcript);
-                searchInput.value = digitizedText;
+                for (let i = event.resultIndex; i < event.results.length; i++) transcript += event.results[i][0].transcript;
+                searchInput.value = convertSpanishWordsToDigits(transcript);
                 handleSearchInput();
             };
 
-            speechRecognition.onerror = function(event) {
-                console.warn('Error reconocimiento voz:', event.error);
-                stopVoiceUI();
-            };
-
-            speechRecognition.onend = function() {
-                stopVoiceUI();
-            };
-
+            speechRecognition.onerror = function() { stopVoiceUI(); };
+            speechRecognition.onend = function() { stopVoiceUI(); };
             speechRecognition.start();
         }
 
@@ -753,51 +558,21 @@
             isListening = false;
             const micBtn = document.getElementById('btn-voice-search');
             const searchInput = document.getElementById('search-input');
-            if (micBtn) {
-                micBtn.classList.remove('bg-red-500', 'text-white', 'animate-pulse');
-                micBtn.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
-            }
-            if (searchInput && searchInput.placeholder === 'Escuchando... habla ahora') {
-                searchInput.placeholder = 'Escribe o habla (ej: S26 blanco, iPhone 128)...';
-            }
+            if (micBtn) { micBtn.classList.remove('bg-red-500', 'text-white', 'animate-pulse'); micBtn.classList.add('bg-gray-100', 'text-gray-600'); }
+            if (searchInput) searchInput.placeholder = 'Escribe o habla (ej: S26 blanco, iPhone 128)...';
         }
 
         function startScanner() {
             document.getElementById('modal-scanner').classList.remove('hidden');
             html5QrCode = new Html5Qrcode("interactive-reader");
-            
-            const config = { 
-                fps: 10, 
-                qrbox: { width: 250, height: 150 },
-                aspectRatio: 1.0
-            };
-
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                config, 
-                onScanSuccess, 
-                onScanFailure
-            ).catch(err => {
-                alert("No se pudo acceder a la cámara: " + err);
-                stopScanner();
-            });
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 }, onScanSuccess, onScanFailure).catch(err => { alert("Error cámara: " + err); stopScanner(); });
         }
 
-        function onScanSuccess(decodedText) {
-            stopScanner();
-            document.getElementById('search-input').value = decodedText;
-            performSearch(decodedText);
-        }
-
-        function onScanFailure(error) {}
+        function onScanSuccess(decodedText) { stopScanner(); document.getElementById('search-input').value = decodedText; performSearch(decodedText); }
+        function onScanFailure() {}
 
         function stopScanner() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    html5QrCode.clear();
-                    html5QrCode = null;
-                }).catch(err => console.error(err));
-            }
+            if (html5QrCode) { html5QrCode.stop().then(() => { html5QrCode.clear(); html5QrCode = null; }).catch(err => console.error(err)); }
             document.getElementById('modal-scanner').classList.add('hidden');
         }
 
@@ -806,40 +581,18 @@
             document.getElementById('modal-code-type').innerText = 'CÓDIGO DE BARRAS';
             document.getElementById('modal-code-title').innerText = label;
             document.getElementById('modal-code-val').innerText = codeValue;
-
             const barcodeSvg = document.getElementById('barcode-svg');
             const qrcodeDiv = document.getElementById('qrcode-div');
-
-            qrcodeDiv.classList.add('hidden');
-            barcodeSvg.classList.remove('hidden');
-            qrcodeDiv.innerHTML = '';
+            qrcodeDiv.classList.add('hidden'); barcodeSvg.classList.remove('hidden'); qrcodeDiv.innerHTML = '';
 
             try {
                 let format = "CODE128";
                 if (/^\d{13}$/.test(codeValue)) format = "EAN13";
                 else if (/^\d{8}$/.test(codeValue)) format = "EAN8";
-
-                JsBarcode("#barcode-svg", codeValue, {
-                    format: format,
-                    lineColor: "#000",
-                    width: 2,
-                    height: 80,
-                    displayValue: true,
-                    fontSize: 14,
-                    margin: 10
-                });
+                JsBarcode("#barcode-svg", codeValue, { format: format, lineColor: "#000", width: 2, height: 80, displayValue: true, fontSize: 14, margin: 10 });
             } catch(e) {
-                JsBarcode("#barcode-svg", codeValue, {
-                    format: "CODE128",
-                    lineColor: "#000",
-                    width: 2,
-                    height: 80,
-                    displayValue: true,
-                    fontSize: 14,
-                    margin: 10
-                });
+                JsBarcode("#barcode-svg", codeValue, { format: "CODE128", lineColor: "#000", width: 2, height: 80, displayValue: true, fontSize: 14, margin: 10 });
             }
-
             modal.classList.remove('hidden');
         }
 
@@ -848,29 +601,14 @@
             document.getElementById('modal-code-type').innerText = 'CÓDIGO QR';
             document.getElementById('modal-code-title').innerText = label;
             document.getElementById('modal-code-val').innerText = codeValue;
-
             const barcodeSvg = document.getElementById('barcode-svg');
             const qrcodeDiv = document.getElementById('qrcode-div');
-
-            barcodeSvg.classList.add('hidden');
-            qrcodeDiv.classList.remove('hidden');
-            qrcodeDiv.innerHTML = '';
-
-            new QRCode(qrcodeDiv, {
-                text: codeValue,
-                width: 160,
-                height: 160,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
-            });
-
+            barcodeSvg.classList.add('hidden'); qrcodeDiv.classList.remove('hidden'); qrcodeDiv.innerHTML = '';
+            new QRCode(qrcodeDiv, { text: codeValue, width: 160, height: 160, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H });
             modal.classList.remove('hidden');
         }
 
-        function closeCodeModal() {
-            document.getElementById('modal-code').classList.add('hidden');
-        }
+        function closeCodeModal() { document.getElementById('modal-code').classList.add('hidden'); }
     </script>
 </body>
 </html>
