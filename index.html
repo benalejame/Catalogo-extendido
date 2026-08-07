@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Catálogo Extendido Cifrado</title>
+    <title>Buscador de Productos & EAN Scanner</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -16,7 +16,7 @@
     <script src="https://unpkg.com/html5-qrcode"></script>
     <!-- PapaParse -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- CryptoJS para Desencriptación -->
+    <!-- CryptoJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <style>
@@ -89,10 +89,12 @@
                     </button>
                 </div>
 
-                <!-- Unlock Status / Re-enter Key -->
-                <div class="flex justify-between items-center pt-0.5 text-xs text-gray-400">
-                    <span id="lock-status">Catálogo protegido</span>
-                    <button onclick="promptForPassword()" class="hover:text-indigo-600 underline">Cambiar Contraseña</button>
+                <!-- Secondary Actions (Upload CSVs Icon) -->
+                <div class="flex justify-end pt-0.5">
+                    <label title="Cargar CSVs locales" class="p-1.5 text-gray-400 hover:text-indigo-600 cursor-pointer transition rounded-lg hover:bg-gray-50 flex items-center justify-center">
+                        <i data-lucide="file-up" class="w-4 h-4"></i>
+                        <input type="file" id="csv-file-input" accept=".csv,.enc" multiple class="hidden" onchange="handleFileUpload(event)">
+                    </label>
                 </div>
             </div>
 
@@ -111,7 +113,7 @@
                     <i data-lucide="search-x" class="w-8 h-8"></i>
                 </div>
                 <h3 class="text-lg font-medium text-gray-800">Escribe, habla o escanea para buscar</h3>
-                <p class="text-sm text-gray-500 max-w-sm mx-auto">Introduce la clave de acceso para desbloquear la búsqueda.</p>
+                <p class="text-sm text-gray-500 max-w-sm mx-auto">Busca en todos los catálogos cargados (570.csv y Apple.csv).</p>
             </div>
         </section>
 
@@ -132,6 +134,7 @@
                     <i data-lucide="qr-code" class="w-4 h-4 text-indigo-600"></i>
                     Generador de Códigos
                 </h3>
+                <p class="text-xs text-gray-500">Haz clic en los botones para generar el código de barras o QR escaneable.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="ean-buttons-container"></div>
             </div>
 
@@ -148,13 +151,13 @@
     </main>
 
     <!-- MODAL: PASSWORD PROMPT -->
-    <div id="modal-password" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div id="modal-password" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
         <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-center">
             <div class="inline-flex p-3 bg-indigo-50 text-indigo-600 rounded-full mb-1">
                 <i data-lucide="lock" class="w-6 h-6"></i>
             </div>
             <h3 class="text-lg font-bold text-gray-900">Acceso Protegido</h3>
-            <p class="text-xs text-gray-500">Introduce la contraseña para descifrar la base de datos en memoria.</p>
+            <p class="text-xs text-gray-500">Introduce la contraseña para descifrar la base de datos.</p>
             <input type="password" id="app-password" placeholder="Contraseña secreta" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-sm" onkeydown="if(event.key==='Enter') unlockDatabase()">
             <button onclick="unlockDatabase()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
                 Desbloquear Catálogo
@@ -207,9 +210,16 @@
         let isListening = false;
 
         const ENCRYPTED_CSV_FILES = ['570.csv.enc', 'Apple.csv.enc'];
+        const STORAGE_KEY = 'extended_catalog_pass';
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
+            const savedPass = localStorage.getItem(STORAGE_KEY);
+            if (savedPass) {
+                attemptDecryptWithPassword(savedPass, true);
+            } else {
+                promptForPassword();
+            }
         });
 
         function promptForPassword() {
@@ -223,7 +233,10 @@
                 alert("Introduce la contraseña.");
                 return;
             }
+            attemptDecryptWithPassword(password, false);
+        }
 
+        function attemptDecryptWithPassword(password, isAuto) {
             let loadedCount = 0;
             let combinedData = [];
             let hasError = false;
@@ -231,7 +244,7 @@
             ENCRYPTED_CSV_FILES.forEach(url => {
                 fetch(url)
                     .then(res => {
-                        if (!res.ok) throw new Error("No encontrado");
+                        if (!res.ok) throw new Error("Archivo no encontrado");
                         return res.text();
                     })
                     .then(encryptedContent => {
@@ -250,15 +263,23 @@
                                     combinedData = combinedData.concat(processRawData(results.data, url));
                                 }
                                 loadedCount++;
-                                if (loadedCount === ENCRYPTED_CSV_FILES.length) {
+                                if (loadedCount === ENCRYPTED_CSV_FILES.length && !hasError) {
+                                    localStorage.setItem(STORAGE_KEY, password);
                                     finishUnlock(combinedData);
                                 }
                             }
                         });
                     })
                     .catch(err => {
-                        hasError = true;
-                        alert("Contraseña incorrecta o error cargando " + url);
+                        if (!hasError) {
+                            hasError = true;
+                            localStorage.removeItem(STORAGE_KEY);
+                            if (isAuto) {
+                                promptForPassword();
+                            } else {
+                                alert("Contraseña incorrecta o los archivos han cambiado.");
+                            }
+                        }
                     });
             });
         }
@@ -266,8 +287,6 @@
         function finishUnlock(data) {
             productDatabase = data;
             document.getElementById('modal-password').classList.add('hidden');
-            document.getElementById('lock-status').innerText = `${productDatabase.length.toLocaleString()} productos descifrados`;
-            document.getElementById('lock-status').classList.add('text-emerald-600', 'font-medium');
             if (document.getElementById('search-input').value.trim().length > 0) {
                 handleSearchInput();
             }
@@ -349,6 +368,34 @@
                 item._modelo_ref = item.MOD || item.DIBUJO || '';
                 item._precio = item['PVP TARIFA'] ? (item['PVP TARIFA'] + ' €') : '';
                 return item;
+            });
+        }
+
+        function handleFileUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            let loadedCount = 0;
+            let combinedData = [];
+
+            Array.from(files).forEach(file => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    encoding: "UTF-8",
+                    complete: function(results) {
+                        if (results.data && results.data.length > 0) {
+                            combinedData = combinedData.concat(processRawData(results.data, file.name));
+                        }
+                        loadedCount++;
+                        if (loadedCount === files.length) {
+                            productDatabase = combinedData;
+                            if (document.getElementById('search-input').value.trim().length > 0) {
+                                handleSearchInput();
+                            }
+                        }
+                    }
+                });
             });
         }
 
