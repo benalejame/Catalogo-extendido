@@ -66,7 +66,7 @@
                     <div class="relative flex-grow flex items-center">
                         <i data-lucide="search" class="absolute left-3.5 w-5 h-5 text-gray-400"></i>
                         <input type="text" id="search-input" 
-                               placeholder="Escribe modelo, EAN, descripción, marca..." 
+                               placeholder="Escribe varios términos (ej: S26 blanco)..." 
                                class="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-gray-900 placeholder-gray-400 transition"
                                oninput="handleSearchInput()"
                                onkeydown="handleSearchKeyDown(event)"
@@ -466,35 +466,37 @@
         function performSearch(query) {
             if (!productDatabase || productDatabase.length === 0) return;
 
-            const q = query.toLowerCase();
-            
+            // Separación de la consulta en términos independientes (palabras)
+            const terms = query.toLowerCase().split(/\s+/).filter(t => t.trim().length > 0);
+            if (terms.length === 0) {
+                resetSearch();
+                return;
+            }
+
             const scored = [];
-            
+
             for (let i = 0; i < productDatabase.length; i++) {
                 const item = productDatabase[i];
-                let score = 0;
-                let matched = false;
 
-                const desc = (item.DESCRIPCION || '').toLowerCase();
-                const ean = (item.EAN || '').toLowerCase();
-                const eani = (item.EANI || '').toLowerCase();
-                const mod = (item.MOD || '').toLowerCase();
+                // Unificamos todo el texto del producto en minúsculas
+                const fullText = Object.values(item)
+                    .filter(val => val != null)
+                    .map(val => String(val).toLowerCase())
+                    .join(' ');
 
-                if (desc.startsWith(q)) { score += 100; matched = true; }
-                else if (desc.includes(q)) { score += 50; matched = true; }
+                // Verificamos que TODOS los términos buscados estén dentro de algún campo del producto (operación AND)
+                const matchesAll = terms.every(term => fullText.includes(term));
 
-                if (ean.startsWith(q) || eani.startsWith(q)) { score += 90; matched = true; }
-                else if (ean.includes(q) || eani.includes(q)) { score += 40; matched = true; }
+                if (matchesAll) {
+                    let score = 0;
+                    const desc = (item.DESCRIPCION || '').toLowerCase();
 
-                if (mod.startsWith(q)) { score += 80; matched = true; }
-                else if (mod.includes(q)) { score += 30; matched = true; }
+                    // Puntuación adicional para priorizar coincidencias en la descripción o al inicio
+                    terms.forEach(term => {
+                        if (desc.startsWith(term)) score += 50;
+                        else if (desc.includes(term)) score += 20;
+                    });
 
-                if (!matched) {
-                    matched = Object.values(item).some(val => val && String(val).toLowerCase().includes(q));
-                    if (matched) score += 10;
-                }
-
-                if (matched) {
                     scored.push({ item, score });
                 }
             }
