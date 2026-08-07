@@ -61,12 +61,12 @@
                     Búsqueda de productos
                 </label>
 
-                <!-- Search Input + Inline Scan Button -->
+                <!-- Search Input + Voice Button + Inline Scan Button -->
                 <div class="flex items-center gap-2">
                     <div class="relative flex-grow flex items-center">
                         <i data-lucide="search" class="absolute left-3.5 w-5 h-5 text-gray-400"></i>
                         <input type="text" id="search-input" 
-                               placeholder="Escribe varios términos (ej: S26 blanco)..." 
+                               placeholder="Escribe o habla (ej: S26 blanco, iPhone 128)..." 
                                class="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-gray-900 placeholder-gray-400 transition"
                                oninput="handleSearchInput()"
                                onkeydown="handleSearchKeyDown(event)"
@@ -76,17 +76,22 @@
                         </button>
                     </div>
 
+                    <!-- Voice Search Button -->
+                    <button id="btn-voice-search" onclick="toggleVoiceSearch()" title="Búsqueda por voz" class="p-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl shadow-sm transition active:scale-95 flex-shrink-0 flex items-center justify-center">
+                        <i data-lucide="mic" class="w-6 h-6"></i>
+                    </button>
+
                     <!-- Small Scan EAN Button next to search bar -->
                     <button onclick="startScanner()" title="Escanear Código EAN 13" class="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition active:scale-95 flex-shrink-0 flex items-center justify-center">
                         <i data-lucide="scan-barcode" class="w-6 h-6"></i>
                     </button>
                 </div>
 
-                <!-- Secondary Actions (Icon only) -->
+                <!-- Secondary Actions (Upload multiple CSVs) -->
                 <div class="flex justify-end pt-0.5">
-                    <label title="Cargar otro CSV local" class="p-1.5 text-gray-400 hover:text-indigo-600 cursor-pointer transition rounded-lg hover:bg-gray-50 flex items-center justify-center">
+                    <label title="Cargar CSVs locales" class="p-1.5 text-gray-400 hover:text-indigo-600 cursor-pointer transition rounded-lg hover:bg-gray-50 flex items-center justify-center">
                         <i data-lucide="file-up" class="w-4 h-4"></i>
-                        <input type="file" id="csv-file-input" accept=".csv" class="hidden" onchange="handleFileUpload(event)">
+                        <input type="file" id="csv-file-input" accept=".csv" multiple class="hidden" onchange="handleFileUpload(event)">
                     </label>
                 </div>
             </div>
@@ -107,8 +112,8 @@
                 <div class="inline-flex p-4 bg-indigo-50 rounded-full text-indigo-500 mb-2">
                     <i data-lucide="search-x" class="w-8 h-8"></i>
                 </div>
-                <h3 class="text-lg font-medium text-gray-800">Escribe o escanea para buscar</h3>
-                <p class="text-sm text-gray-500 max-w-sm mx-auto">Los resultados aparecerán automáticamente mientras escribes.</p>
+                <h3 class="text-lg font-medium text-gray-800">Escribe, habla o escanea para buscar</h3>
+                <p class="text-sm text-gray-500 max-w-sm mx-auto">Busca en todos los catálogos cargados (570.csv y Apple.csv).</p>
             </div>
         </section>
 
@@ -214,45 +219,73 @@
         let productDatabase = [];
         let currentResults = [];
         let html5QrCode = null;
+        let speechRecognition = null;
+        let isListening = false;
 
-        const DEFAULT_CSV_URL = '570.csv';
+        const DEFAULT_CSV_FILES = ['570.csv', 'Apple.csv'];
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
-            loadCSVFromUrl(DEFAULT_CSV_URL);
+            loadMultipleCSVs(DEFAULT_CSV_FILES);
         });
 
-        function loadCSVFromUrl(url) {
-            Papa.parse(url, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                encoding: "UTF-8",
-                complete: function(results) {
-                    if (results.data && results.data.length > 0) {
-                        productDatabase = processRawData(results.data);
+        function loadMultipleCSVs(fileUrls) {
+            let loadedCount = 0;
+            let combinedData = [];
+
+            fileUrls.forEach(url => {
+                Papa.parse(url, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    encoding: "UTF-8",
+                    complete: function(results) {
+                        if (results.data && results.data.length > 0) {
+                            const processed = processRawData(results.data, url);
+                            combinedData = combinedData.concat(processed);
+                        }
+                        loadedCount++;
+                        if (loadedCount === fileUrls.length) {
+                            productDatabase = combinedData;
+                        }
+                    },
+                    error: function(err) {
+                        console.warn(`No se pudo cargar el CSV automático (${url}):`, err);
+                        loadedCount++;
+                        if (loadedCount === fileUrls.length) {
+                            productDatabase = combinedData;
+                        }
                     }
-                },
-                error: function(err) {
-                    console.warn("No se pudo cargar el CSV automático:", err);
-                }
+                });
             });
         }
 
         function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
 
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                encoding: "UTF-8",
-                complete: function(results) {
-                    productDatabase = processRawData(results.data);
-                    if (document.getElementById('search-input').value.trim().length > 0) {
-                        handleSearchInput();
+            let loadedCount = 0;
+            let combinedData = [];
+
+            Array.from(files).forEach(file => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    encoding: "UTF-8",
+                    complete: function(results) {
+                        if (results.data && results.data.length > 0) {
+                            const processed = processRawData(results.data, file.name);
+                            combinedData = combinedData.concat(processed);
+                        }
+                        loadedCount++;
+                        if (loadedCount === files.length) {
+                            productDatabase = combinedData;
+                            if (document.getElementById('search-input').value.trim().length > 0) {
+                                handleSearchInput();
+                            }
+                        }
                     }
-                }
+                });
             });
         }
 
@@ -303,7 +336,9 @@
                 .trim();
         }
 
-        function processRawData(data) {
+        function processRawData(data, sourceName) {
+            const isAppleSource = sourceName.toLowerCase().includes('apple');
+
             return data.map(row => {
                 const item = {};
                 for (let key in row) {
@@ -316,6 +351,24 @@
                     val = cleanMojibake(val);
                     item[key.trim()] = val;
                 }
+
+                // Normalización de marcas para estructuras no idénticas
+                if (!item.MARCA || item.MARCA.trim() === '') {
+                    const desc = (item.DESCRIPCION || '').toUpperCase();
+                    if (isAppleSource || desc.includes('APPLE') || desc.includes('IPHONE') || desc.includes('IPAD') || desc.includes('MACBOOK') || desc.includes('AIRPODS') || desc.includes('WATCH')) {
+                        item.MARCA = 'APPLE';
+                    } else {
+                        item.MARCA = 'GENERAL';
+                    }
+                }
+
+                // Normalización interna de propiedades clave para fichas e insignias
+                item._color = item.COLOR || '';
+                item._capacidad = item.CAPACIDAD || '';
+                item._pantalla = item.PANTALLA || item.TAM || item.CAJA || '';
+                item._modelo_ref = item.MOD || item.DIBUJO || '';
+                item._precio = item['PVP TARIFA'] ? (item['PVP TARIFA'] + ' €') : '';
+
                 return item;
             });
         }
@@ -338,9 +391,11 @@
             specsContainer.innerHTML = '';
             
             const badges = [
-                { label: 'Color', val: item.COLOR, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-                { label: 'Capacidad', val: item.CAPACIDAD, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                { label: 'Pantalla', val: item.PANTALLA ? item.PANTALLA + '"' : '', color: 'bg-purple-50 text-purple-700 border-purple-200' }
+                { label: 'Color', val: item._color, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                { label: 'Capacidad', val: item._capacidad, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                { label: 'Tamaño/Pantalla', val: item._pantalla ? (item._pantalla.includes('"') || item._pantalla.toLowerCase().includes('mm') ? item._pantalla : item._pantalla + '"') : '', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+                { label: 'Precio', val: item._precio, color: 'bg-amber-50 text-amber-700 border-amber-200' },
+                { label: 'Ref/Modelo', val: item._modelo_ref, color: 'bg-gray-100 text-gray-700 border-gray-200' }
             ];
 
             badges.forEach(b => {
@@ -402,11 +457,14 @@
             const detailsTable = document.getElementById('prod-details-table');
             detailsTable.innerHTML = '';
 
+            // Mostrar todos los campos no vacíos de la ficha técnica
             for (const [key, val] of Object.entries(item)) {
+                if (key.startsWith('_') || !val) continue;
+
                 const row = document.createElement('div');
                 row.className = "flex flex-col sm:flex-row px-5 py-3 sm:items-center hover:bg-gray-50/80 transition";
                 
-                let valHTML = `<span class="text-gray-900 font-medium">${val || '<em class="text-gray-400 font-normal">N/A</em>'}</span>`;
+                let valHTML = `<span class="text-gray-900 font-medium">${val}</span>`;
 
                 if (val.startsWith('http://') || val.startsWith('https://')) {
                     valHTML = `
@@ -466,7 +524,6 @@
         function performSearch(query) {
             if (!productDatabase || productDatabase.length === 0) return;
 
-            // Separación de la consulta en términos independientes (palabras)
             const terms = query.toLowerCase().split(/\s+/).filter(t => t.trim().length > 0);
             if (terms.length === 0) {
                 resetSearch();
@@ -478,20 +535,17 @@
             for (let i = 0; i < productDatabase.length; i++) {
                 const item = productDatabase[i];
 
-                // Unificamos todo el texto del producto en minúsculas
                 const fullText = Object.values(item)
                     .filter(val => val != null)
                     .map(val => String(val).toLowerCase())
                     .join(' ');
 
-                // Verificamos que TODOS los términos buscados estén dentro de algún campo del producto (operación AND)
                 const matchesAll = terms.every(term => fullText.includes(term));
 
                 if (matchesAll) {
                     let score = 0;
                     const desc = (item.DESCRIPCION || '').toLowerCase();
 
-                    // Puntuación adicional para priorizar coincidencias en la descripción o al inicio
                     terms.forEach(term => {
                         if (desc.startsWith(term)) score += 50;
                         else if (desc.includes(term)) score += 20;
@@ -539,8 +593,10 @@
                     <div class="space-y-0.5 flex-grow min-w-0">
                         <div class="flex items-center space-x-2">
                             <span class="text-[10px] font-bold px-1.5 py-0.2 bg-gray-100 text-gray-700 rounded uppercase">${item.MARCA || 'GENERAL'}</span>
-                            ${item.COLOR ? `<span class="text-xs text-gray-500 truncate">${item.COLOR}</span>` : ''}
-                            ${item.CAPACIDAD ? `<span class="text-xs text-gray-500 font-medium">${item.CAPACIDAD}</span>` : ''}
+                            ${item._color ? `<span class="text-xs text-gray-500 truncate">${item._color}</span>` : ''}
+                            ${item._capacidad ? `<span class="text-xs text-gray-500 font-medium">${item._capacidad}</span>` : ''}
+                            ${item._pantalla ? `<span class="text-xs text-gray-400">${item._pantalla}</span>` : ''}
+                            ${item._precio ? `<span class="text-xs font-semibold text-emerald-600">${item._precio}</span>` : ''}
                         </div>
                         <h4 class="font-semibold text-sm text-gray-900 truncate leading-snug group-hover:text-indigo-600 transition">${item.DESCRIPCION || 'Sin descripción'}</h4>
                         ${item.EAN ? `<p class="text-[11px] font-mono text-gray-400 truncate">EAN: ${item.EAN}</p>` : ''}
@@ -566,6 +622,68 @@
             }
 
             lucide.createIcons();
+        }
+
+        // Reconocimiento de Voz (Web Speech API)
+        function toggleVoiceSearch() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Tu navegador no soporta el reconocimiento de voz. Prueba con Google Chrome o Safari en tu móvil.");
+                return;
+            }
+
+            if (isListening && speechRecognition) {
+                speechRecognition.stop();
+                return;
+            }
+
+            speechRecognition = new SpeechRecognition();
+            speechRecognition.lang = 'es-ES';
+            speechRecognition.continuous = false;
+            speechRecognition.interimResults = true;
+
+            const micBtn = document.getElementById('btn-voice-search');
+            const searchInput = document.getElementById('search-input');
+
+            speechRecognition.onstart = function() {
+                isListening = true;
+                micBtn.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+                micBtn.classList.add('bg-red-500', 'text-white', 'animate-pulse');
+                searchInput.placeholder = 'Escuchando... habla ahora';
+            };
+
+            speechRecognition.onresult = function(event) {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                searchInput.value = transcript;
+                handleSearchInput();
+            };
+
+            speechRecognition.onerror = function(event) {
+                console.warn('Error reconocimiento voz:', event.error);
+                stopVoiceUI();
+            };
+
+            speechRecognition.onend = function() {
+                stopVoiceUI();
+            };
+
+            speechRecognition.start();
+        }
+
+        function stopVoiceUI() {
+            isListening = false;
+            const micBtn = document.getElementById('btn-voice-search');
+            const searchInput = document.getElementById('search-input');
+            if (micBtn) {
+                micBtn.classList.remove('bg-red-500', 'text-white', 'animate-pulse');
+                micBtn.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+            }
+            if (searchInput && searchInput.placeholder === 'Escuchando... habla ahora') {
+                searchInput.placeholder = 'Escribe o habla (ej: S26 blanco, iPhone 128)...';
+            }
         }
 
         function startScanner() {
