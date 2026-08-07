@@ -336,6 +336,84 @@
                 .trim();
         }
 
+        // Función para convertir números dictados en texto a números digitales (en español)
+        function convertSpanishWordsToDigits(str) {
+            if (!str || typeof str !== 'string') return '';
+
+            const units = {
+                'cero': 0, 'uno': 1, 'un': 1, 'una': 1, 'dos': 2, 'tres': 3, 'cuatro': 4,
+                'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9, 'diez': 10,
+                'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14, 'quince': 15,
+                'dieciséis': 16, 'dieciseis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19,
+                'veinte': 20, 'veintiuno': 21, 'veintidós': 22, 'veintidos': 22, 'veintitrés': 23, 'veintitres': 23,
+                'veinticuatro': 24, 'veinticinco': 25, 'veintiséis': 26, 'veintiseis': 26, 'veintisiete': 27,
+                'veintiocho': 28, 'veintinueve': 29
+            };
+
+            const tens = {
+                'treinta': 30, 'cuarenta': 40, 'cincuenta': 50, 'sesenta': 60,
+                'setenta': 70, 'ochenta': 80, 'noventa': 90
+            };
+
+            const hundreds = {
+                'cien': 100, 'ciento': 100, 'doscientos': 200, 'doscientas': 200,
+                'trescientos': 300, 'trescientas': 300, 'cuatrocientos': 400, 'cuatrocientas': 400,
+                'quinientos': 500, 'quinientas': 500, 'seiscientos': 600, 'seiscientas': 600,
+                'setecientos': 700, 'setecientas': 700, 'ochocientos': 800, 'ochocientas': 800,
+                'novecientos': 900, 'novecientas': 900
+            };
+
+            let cleanText = str.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ");
+            let words = cleanText.split(/\s+/).filter(w => w.length > 0);
+            let newWords = [];
+            let i = 0;
+
+            while (i < words.length) {
+                let w = words[i];
+                let val = 0;
+                let hasNum = false;
+
+                if (hundreds.hasOwnProperty(w)) {
+                    val += hundreds[w];
+                    hasNum = true;
+                    i++;
+                    if (i < words.length) w = words[i];
+                }
+
+                if (tens.hasOwnProperty(w)) {
+                    val += tens[w];
+                    hasNum = true;
+                    i++;
+                    if (i < words.length && words[i] === 'y') {
+                        i++;
+                        if (i < words.length && units.hasOwnProperty(words[i])) {
+                            val += units[words[i]];
+                            i++;
+                        }
+                    } else if (i < words.length && units.hasOwnProperty(words[i])) {
+                        val += units[words[i]];
+                        i++;
+                    }
+                } else if (units.hasOwnProperty(w)) {
+                    val += units[w];
+                    hasNum = true;
+                    i++;
+                }
+
+                if (hasNum) {
+                    newWords.push(String(val));
+                } else {
+                    newWords.push(words[i]);
+                    i++;
+                }
+            }
+
+            let result = newWords.join(' ');
+            // Agrupar dígitos consecutivos sueltos si el usuario dicta dígito por dígito (ej. "8 4 0" -> "840")
+            result = result.replace(/(?<=\b\d)\s+(?=\d\b)/g, '');
+            return result;
+        }
+
         function processRawData(data, sourceName) {
             const isAppleSource = sourceName.toLowerCase().includes('apple');
 
@@ -352,7 +430,6 @@
                     item[key.trim()] = val;
                 }
 
-                // Normalización de marcas para estructuras no idénticas
                 if (!item.MARCA || item.MARCA.trim() === '') {
                     const desc = (item.DESCRIPCION || '').toUpperCase();
                     if (isAppleSource || desc.includes('APPLE') || desc.includes('IPHONE') || desc.includes('IPAD') || desc.includes('MACBOOK') || desc.includes('AIRPODS') || desc.includes('WATCH')) {
@@ -362,7 +439,6 @@
                     }
                 }
 
-                // Normalización interna de propiedades clave para fichas e insignias
                 item._color = item.COLOR || '';
                 item._capacidad = item.CAPACIDAD || '';
                 item._pantalla = item.PANTALLA || item.TAM || item.CAJA || '';
@@ -412,7 +488,6 @@
 
             let hasCode = false;
 
-            // 1. Código de barras para EAN
             const eanVal = item.EAN || item.EAN2;
             if (eanVal && eanVal.trim() !== '') {
                 hasCode = true;
@@ -431,7 +506,6 @@
                 eanContainer.appendChild(card);
             }
 
-            // 2. Código QR para EANI
             const eaniVal = item.EANI;
             if (eaniVal && eaniVal.trim() !== '') {
                 hasCode = true;
@@ -457,7 +531,6 @@
             const detailsTable = document.getElementById('prod-details-table');
             detailsTable.innerHTML = '';
 
-            // Mostrar todos los campos no vacíos de la ficha técnica
             for (const [key, val] of Object.entries(item)) {
                 if (key.startsWith('_') || !val) continue;
 
@@ -624,7 +697,7 @@
             lucide.createIcons();
         }
 
-        // Reconocimiento de Voz (Web Speech API)
+        // Reconocimiento de Voz (Web Speech API con conversión de palabras a dígitos)
         function toggleVoiceSearch() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
@@ -657,7 +730,10 @@
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     transcript += event.results[i][0].transcript;
                 }
-                searchInput.value = transcript;
+                
+                // Conversión de palabras numéricas dictadas a dígitos numéricos
+                let digitizedText = convertSpanishWordsToDigits(transcript);
+                searchInput.value = digitizedText;
                 handleSearchInput();
             };
 
