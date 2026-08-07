@@ -150,6 +150,11 @@
         </section>
     </main>
 
+    <!-- Footer -->
+    <footer class="py-4 text-center text-xs text-gray-400 border-t border-gray-200 mt-auto bg-white/50">
+        <p>Ben A. M. &copy; <span id="footer-year">2026</span></p>
+    </footer>
+
     <!-- MODAL: PASSWORD PROMPT -->
     <div id="modal-password" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
         <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-center">
@@ -214,6 +219,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
+            updateFooterYear();
             const savedPass = localStorage.getItem(STORAGE_KEY);
             if (savedPass) {
                 attemptDecryptWithPassword(savedPass, true);
@@ -221,6 +227,15 @@
                 promptForPassword();
             }
         });
+
+        function updateFooterYear() {
+            const startYear = 2026;
+            const currentYear = new Date().getFullYear();
+            const yearElem = document.getElementById('footer-year');
+            if (yearElem) {
+                yearElem.innerText = currentYear > startYear ? `${startYear}-${currentYear}` : `${startYear}`;
+            }
+        }
 
         function promptForPassword() {
             document.getElementById('modal-password').classList.remove('hidden');
@@ -605,7 +620,7 @@
             isListening = false;
             const micBtn = document.getElementById('btn-voice-search');
             const searchInput = document.getElementById('search-input');
-            if (micBtn) { micBtn.classList.remove('bg-red-500', 'text-white', 'animate-pulse'); micBtn.classList.add('bg-gray-100', 'text-gray-600'); }
+            if (micBtn) { micBtn.classList.remove('bg-red-500', 'text-white'); micBtn.classList.add('bg-gray-100', 'text-gray-600'); }
             if (searchInput) searchInput.placeholder = 'Escribe o habla (ej: S26 blanco, iPhone 128)...';
         }
 
