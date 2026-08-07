@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Buscador de Productos & EAN Scanner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- JsBarcode -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <!-- QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Html5-QRCode Scanner -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- PapaParse para parsear CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+    <!-- Header / Navbar -->
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="navToSearch()">
+                <div class="p-2 bg-indigo-700 rounded-lg">
+                    <i data-lucide="smartphone" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Catálogo Extendido</h1>
+                </div>
+            </div>
+            <button id="btn-back" onclick="navToSearch()" class="hidden flex items-center space-x-1 bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                <span>Volver</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4">
+
+        <!-- VIEW 1: SEARCH PAGE -->
+        <section id="view-search" class="space-y-4">
+            <!-- Search Box Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 space-y-3 relative">
+                <label for="search-input" class="block text-sm font-semibold text-gray-700">
+                    Búsqueda de productos
+                </label>
+
+                <!-- Search Input + Inline Scan Button -->
+                <div class="flex items-center gap-2">
+                    <div class="relative flex-grow flex items-center">
+                        <i data-lucide="search" class="absolute left-3.5 w-5 h-5 text-gray-400"></i>
+                        <input type="text" id="search-input" 
+                               placeholder="Escribe modelo, EAN, descripción, marca..." 
+                               class="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-gray-900 placeholder-gray-400 transition"
+                               oninput="handleSearchInput()"
+                               onkeydown="handleSearchKeyDown(event)"
+                               autocomplete="off">
+                        <button id="btn-clear-search" onclick="clearSearch()" class="hidden absolute right-3 text-gray-400 hover:text-gray-600">
+                            <i data-lucide="x-circle" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Small Scan EAN Button next to search bar -->
+                    <button onclick="startScanner()" title="Escanear Código EAN 13" class="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition active:scale-95 flex-shrink-0 flex items-center justify-center">
+                        <i data-lucide="scan-barcode" class="w-6 h-6"></i>
+                    </button>
+                </div>
+
+                <!-- Secondary Actions (Icon only) -->
+                <div class="flex justify-end pt-0.5">
+                    <label title="Cargar otro CSV local" class="p-1.5 text-gray-400 hover:text-indigo-600 cursor-pointer transition rounded-lg hover:bg-gray-50 flex items-center justify-center">
+                        <i data-lucide="file-up" class="w-4 h-4"></i>
+                        <input type="file" id="csv-file-input" accept=".csv" class="hidden" onchange="handleFileUpload(event)">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Results Section Header -->
+            <div id="results-header" class="hidden flex items-center justify-between text-sm text-gray-500 px-1 pt-1">
+                <span>Coincidencias: <strong id="results-count" class="text-gray-900">0</strong></span>
+                <span id="search-query-display" class="italic truncate max-w-[200px]"></span>
+            </div>
+
+            <!-- Results List (Live updating as you type) -->
+            <div id="results-list" class="space-y-2">
+                <!-- Dynamic Items Inserted Here -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="text-center py-12 px-4 space-y-3">
+                <div class="inline-flex p-4 bg-indigo-50 rounded-full text-indigo-500 mb-2">
+                    <i data-lucide="search-x" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-800">Escribe o escanea para buscar</h3>
+                <p class="text-sm text-gray-500 max-w-sm mx-auto">Los resultados aparecerán automáticamente mientras escribes.</p>
+            </div>
+        </section>
+
+        <!-- VIEW 2: PRODUCT DETAIL PAGE -->
+        <section id="view-product" class="hidden space-y-6">
+            <!-- Product Header Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 space-y-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <span id="prod-marca" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 uppercase tracking-wide mb-2">
+                            MARCA
+                        </span>
+                        <h2 id="prod-descripcion" class="text-xl sm:text-2xl font-bold text-gray-900 leading-tight"></h2>
+                    </div>
+                </div>
+
+                <!-- Main Badges -->
+                <div class="flex flex-wrap gap-2 pt-1" id="prod-quick-specs">
+                    <!-- Badges -->
+                </div>
+            </div>
+
+            <!-- EAN Interactive Barcodes Section -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 space-y-4">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="qr-code" class="w-4 h-4 text-indigo-600"></i>
+                    Generador de Códigos
+                </h3>
+                <p class="text-xs text-gray-500">Haz clic en los botones para generar el código de barras o QR escaneable.</p>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="ean-buttons-container">
+                    <!-- EAN Action Buttons -->
+                </div>
+            </div>
+
+            <!-- Full Product Details Table / List -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-800 flex items-center gap-2">
+                        <i data-lucide="database" class="w-4 h-4 text-indigo-600"></i>
+                        Ficha Completa de Datos
+                    </h3>
+                </div>
+                <div class="divide-y divide-gray-100 text-sm" id="prod-details-table">
+                    <!-- Dynamic Details Rows -->
+                </div>
+            </div>
+
+            <!-- Web ECI Embedded Viewer Container -->
+            <div id="webeci-container" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden space-y-3">
+                <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-800 flex items-center gap-2">
+                        <i data-lucide="globe" class="w-4 h-4 text-indigo-600"></i>
+                        Vista Web El Corte Inglés (WEBECI)
+                    </h3>
+                    <a id="webeci-external-link" href="#" target="_blank" rel="noopener noreferrer" class="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center space-x-1">
+                        <span>Abrir externa</span>
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+                <div class="p-2 sm:p-4">
+                    <iframe id="webeci-iframe" class="w-full h-[600px] border border-gray-200 rounded-xl bg-gray-50" src="" loading="lazy"></iframe>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL: CAMERA SCANNER -->
+    <div id="modal-scanner" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-4 bg-indigo-600 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="camera" class="w-5 h-5"></i>
+                    <h3 class="font-semibold">Escanear Código EAN 13</h3>
+                </div>
+                <button onclick="stopScanner()" class="p-1 rounded-lg hover:bg-indigo-700 transition">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div class="p-4 flex-grow flex flex-col items-center justify-center bg-black relative">
+                <div id="interactive-reader" class="w-full"></div>
+                <p class="text-xs text-gray-400 mt-2 text-center">Apunta con la cámara al código de barras del producto</p>
+            </div>
+            <div class="p-4 bg-gray-50 flex justify-end">
+                <button onclick="stopScanner()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-sm font-medium transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: BARCODE / QR CODE DISPLAY -->
+    <div id="modal-code" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 relative">
+            <button onclick="closeCodeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+            <div>
+                <span id="modal-code-type" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 uppercase tracking-wider mb-1">
+                    CÓDIGO DE BARRAS
+                </span>
+                <h3 id="modal-code-title" class="text-lg font-bold text-gray-900">EAN-13</h3>
+                <p id="modal-code-val" class="text-sm font-mono text-gray-600 mt-0.5"></p>
+            </div>
+
+            <!-- Display Container -->
+            <div class="py-4 px-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center min-h-[160px]">
+                <svg id="barcode-svg" class="hidden max-w-full h-auto"></svg>
+                <div id="qrcode-div" class="hidden"></div>
+            </div>
+
+            <button onclick="closeCodeModal()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
+                Cerrar
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Logic -->
+    <script>
+        let productDatabase = [];
+        let currentResults = [];
+        let html5QrCode = null;
+
+        const DEFAULT_CSV_URL = '570.csv';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadCSVFromUrl(DEFAULT_CSV_URL);
+        });
+
+        function loadCSVFromUrl(url) {
+            Papa.parse(url, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.data && results.data.length > 0) {
+                        productDatabase = processRawData(results.data);
+                    }
+                },
+                error: function(err) {
+                    console.warn("No se pudo cargar el CSV automático:", err);
+                }
+            });
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    productDatabase = processRawData(results.data);
+                    if (document.getElementById('search-input').value.trim().length > 0) {
+                        handleSearchInput();
+                    }
+                }
+            });
+        }
+
+        function processRawData(data) {
+            return data.map(row => {
+                const item = {};
+                for (let key in row) {
+                    let val = row[key] ? String(row[key]).trim() : '';
+                    if (val.includes('e+') || val.includes('E+')) {
+                        const num = Number(val);
+                        if (!isNaN(num)) val = num.toLocaleString('fullwide', {useGrouping:false});
+                    }
+                    if (val.endsWith('.0')) val = val.slice(0, -2);
+                    item[key.trim()] = val;
+                }
+                return item;
+            });
+        }
+
+        function navToSearch() {
+            document.getElementById('view-product').classList.add('hidden');
+            document.getElementById('view-search').classList.remove('hidden');
+            document.getElementById('btn-back').classList.add('hidden');
+            document.getElementById('webeci-iframe').src = '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function navToProduct(itemIndex) {
+            const item = currentResults[itemIndex];
+            if (!item) return;
+
+            document.getElementById('prod-marca').innerText = item.MARCA || 'GENERAL';
+            document.getElementById('prod-descripcion').innerText = item.DESCRIPCION || 'Sin descripción';
+
+            const specsContainer = document.getElementById('prod-quick-specs');
+            specsContainer.innerHTML = '';
+            
+            const badges = [
+                { label: 'Color', val: item.COLOR, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                { label: 'Capacidad', val: item.CAPACIDAD, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                { label: 'Pantalla', val: item.PANTALLA ? item.PANTALLA + '"' : '', color: 'bg-purple-50 text-purple-700 border-purple-200' }
+            ];
+
+            badges.forEach(b => {
+                if (b.val) {
+                    const span = document.createElement('span');
+                    span.className = `px-3 py-1 rounded-lg text-xs font-semibold border ${b.color}`;
+                    span.innerText = `${b.label}: ${b.val}`;
+                    specsContainer.appendChild(span);
+                }
+            });
+
+            const eanContainer = document.getElementById('ean-buttons-container');
+            eanContainer.innerHTML = '';
+
+            let hasCode = false;
+
+            // 1. Código de barras para EAN
+            const eanVal = item.EAN || item.EAN2;
+            if (eanVal && eanVal.trim() !== '') {
+                hasCode = true;
+                const card = document.createElement('div');
+                card.className = "p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-col space-y-2";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-500">Código EAN (Barras)</span>
+                        <span class="text-xs font-mono font-semibold text-gray-800">${eanVal}</span>
+                    </div>
+                    <button onclick="showBarcode('${eanVal}', 'Código EAN')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white hover:bg-indigo-50 border border-gray-300 hover:border-indigo-300 text-indigo-700 rounded-lg text-xs font-semibold transition shadow-sm">
+                        <i data-lucide="barcode" class="w-4 h-4"></i>
+                        <span>Generar Código de Barras</span>
+                    </button>
+                `;
+                eanContainer.appendChild(card);
+            }
+
+            // 2. Código QR para EANI
+            const eaniVal = item.EANI;
+            if (eaniVal && eaniVal.trim() !== '') {
+                hasCode = true;
+                const card = document.createElement('div');
+                card.className = "p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-col space-y-2";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-500">Código EANI (QR)</span>
+                        <span class="text-xs font-mono font-semibold text-gray-800">${eaniVal}</span>
+                    </div>
+                    <button onclick="showQRCode('${eaniVal}', 'Código EANI')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white hover:bg-indigo-50 border border-gray-300 hover:border-indigo-300 text-indigo-700 rounded-lg text-xs font-semibold transition shadow-sm">
+                        <i data-lucide="qr-code" class="w-4 h-4"></i>
+                        <span>Generar Código QR</span>
+                    </button>
+                `;
+                eanContainer.appendChild(card);
+            }
+
+            if (!hasCode) {
+                eanContainer.innerHTML = `<p class="text-xs text-gray-400 italic col-span-2">No hay códigos EAN o EANI disponibles para este producto.</p>`;
+            }
+
+            const detailsTable = document.getElementById('prod-details-table');
+            detailsTable.innerHTML = '';
+
+            for (const [key, val] of Object.entries(item)) {
+                const row = document.createElement('div');
+                row.className = "flex flex-col sm:flex-row px-5 py-3 sm:items-center hover:bg-gray-50/80 transition";
+                
+                let valHTML = `<span class="text-gray-900 font-medium">${val || '<em class="text-gray-400 font-normal">N/A</em>'}</span>`;
+
+                if (val.startsWith('http://') || val.startsWith('https://')) {
+                    valHTML = `
+                        <a href="${val}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1.5 text-indigo-600 hover:text-indigo-800 font-medium break-all hover:underline">
+                            <span>${val}</span>
+                            <i data-lucide="external-link" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                        </a>
+                    `;
+                }
+
+                row.innerHTML = `
+                    <div class="w-full sm:w-1/3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-0">${key}</div>
+                    <div class="w-full sm:w-2/3 text-sm">${valHTML}</div>
+                `;
+                detailsTable.appendChild(row);
+            }
+
+            // Cargar automáticamente WEBECI en el iframe si existe la URL
+            const webEciUrl = item.WEBECI || '';
+            const webEciContainer = document.getElementById('webeci-container');
+            const webEciIframe = document.getElementById('webeci-iframe');
+            const webEciExternalLink = document.getElementById('webeci-external-link');
+
+            if (webEciUrl && webEciUrl.startsWith('http')) {
+                webEciIframe.src = webEciUrl;
+                webEciExternalLink.href = webEciUrl;
+                webEciContainer.classList.remove('hidden');
+            } else {
+                webEciIframe.src = '';
+                webEciExternalLink.href = '#';
+                webEciContainer.classList.add('hidden');
+            }
+
+            lucide.createIcons();
+
+            document.getElementById('view-search').classList.add('hidden');
+            document.getElementById('view-product').classList.remove('hidden');
+            document.getElementById('btn-back').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function handleSearchKeyDown(event) {
+            if (event.key === 'Enter') {
+                event.target.blur();
+            }
+        }
+
+        function handleSearchInput() {
+            const query = document.getElementById('search-input').value.trim();
+            const clearBtn = document.getElementById('btn-clear-search');
+
+            if (query.length > 0) {
+                clearBtn.classList.remove('hidden');
+                performSearch(query);
+            } else {
+                clearBtn.classList.add('hidden');
+                resetSearch();
+            }
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            handleSearchInput();
+        }
+
+        function resetSearch() {
+            currentResults = [];
+            document.getElementById('results-list').innerHTML = '';
+            document.getElementById('results-header').classList.add('hidden');
+            document.getElementById('empty-state').classList.remove('hidden');
+        }
+
+        function performSearch(query) {
+            if (!productDatabase || productDatabase.length === 0) return;
+
+            const q = query.toLowerCase();
+            
+            const scored = [];
+            
+            for (let i = 0; i < productDatabase.length; i++) {
+                const item = productDatabase[i];
+                let score = 0;
+                let matched = false;
+
+                const desc = (item.DESCRIPCION || '').toLowerCase();
+                const ean = (item.EAN || '').toLowerCase();
+                const eani = (item.EANI || '').toLowerCase();
+                const mod = (item.MOD || '').toLowerCase();
+
+                if (desc.startsWith(q)) { score += 100; matched = true; }
+                else if (desc.includes(q)) { score += 50; matched = true; }
+
+                if (ean.startsWith(q) || eani.startsWith(q)) { score += 90; matched = true; }
+                else if (ean.includes(q) || eani.includes(q)) { score += 40; matched = true; }
+
+                if (mod.startsWith(q)) { score += 80; matched = true; }
+                else if (mod.includes(q)) { score += 30; matched = true; }
+
+                if (!matched) {
+                    matched = Object.values(item).some(val => val && String(val).toLowerCase().includes(q));
+                    if (matched) score += 10;
+                }
+
+                if (matched) {
+                    scored.push({ item, score });
+                }
+            }
+
+            scored.sort((a, b) => b.score - a.score);
+            currentResults = scored.map(s => s.item);
+
+            renderResults(query);
+        }
+
+        function renderResults(query) {
+            const list = document.getElementById('results-list');
+            const emptyState = document.getElementById('empty-state');
+            const resultsHeader = document.getElementById('results-header');
+
+            list.innerHTML = '';
+
+            if (currentResults.length === 0) {
+                emptyState.classList.remove('hidden');
+                resultsHeader.classList.add('hidden');
+                emptyState.querySelector('h3').innerText = 'No se encontraron resultados';
+                emptyState.querySelector('p').innerText = `No hay ningún registro que coincida con "${query}"`;
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            resultsHeader.classList.remove('hidden');
+            document.getElementById('results-count').innerText = currentResults.length;
+            document.getElementById('search-query-display').innerText = `"${query}"`;
+
+            const limit = Math.min(currentResults.length, 50);
+
+            for (let i = 0; i < limit; i++) {
+                const item = currentResults[i];
+                const card = document.createElement('div');
+                card.className = "bg-white p-3 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-400 hover:shadow-md transition cursor-pointer flex items-center justify-between gap-2";
+                card.onclick = () => navToProduct(i);
+
+                card.innerHTML = `
+                    <div class="space-y-0.5 flex-grow min-w-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[10px] font-bold px-1.5 py-0.2 bg-gray-100 text-gray-700 rounded uppercase">${item.MARCA || 'GENERAL'}</span>
+                            ${item.COLOR ? `<span class="text-xs text-gray-500 truncate">${item.COLOR}</span>` : ''}
+                            ${item.CAPACIDAD ? `<span class="text-xs text-gray-500 font-medium">${item.CAPACIDAD}</span>` : ''}
+                        </div>
+                        <h4 class="font-semibold text-sm text-gray-900 truncate leading-snug group-hover:text-indigo-600 transition">${item.DESCRIPCION || 'Sin descripción'}</h4>
+                        ${item.EAN ? `<p class="text-[11px] font-mono text-gray-400 truncate">EAN: ${item.EAN}</p>` : ''}
+                    </div>
+
+                    <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        ${item.EANI ? `
+                            <button onclick="event.stopPropagation(); showQRCode('${item.EANI}', 'Código EANI')" title="Ver QR de EANI" class="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-lg transition active:scale-95 flex items-center justify-center">
+                                <i data-lucide="qr-code" class="w-4 h-4"></i>
+                            </button>
+                        ` : ''}
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-indigo-600"></i>
+                    </div>
+                `;
+                list.appendChild(card);
+            }
+
+            if (currentResults.length > 50) {
+                const notice = document.createElement('p');
+                notice.className = "text-center text-xs text-gray-400 pt-1 pb-2";
+                notice.innerText = `Mostrando las 50 coincidencias más cercanas de ${currentResults.length}.`;
+                list.appendChild(notice);
+            }
+
+            lucide.createIcons();
+        }
+
+        function startScanner() {
+            document.getElementById('modal-scanner').classList.remove('hidden');
+            html5QrCode = new Html5Qrcode("interactive-reader");
+            
+            const config = { 
+                fps: 10, 
+                qrbox: { width: 250, height: 150 },
+                aspectRatio: 1.0
+            };
+
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config, 
+                onScanSuccess, 
+                onScanFailure
+            ).catch(err => {
+                alert("No se pudo acceder a la cámara: " + err);
+                stopScanner();
+            });
+        }
+
+        function onScanSuccess(decodedText) {
+            stopScanner();
+            document.getElementById('search-input').value = decodedText;
+            performSearch(decodedText);
+        }
+
+        function onScanFailure(error) {}
+
+        function stopScanner() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                    html5QrCode = null;
+                }).catch(err => console.error(err));
+            }
+            document.getElementById('modal-scanner').classList.add('hidden');
+        }
+
+        function showBarcode(codeValue, label) {
+            const modal = document.getElementById('modal-code');
+            document.getElementById('modal-code-type').innerText = 'CÓDIGO DE BARRAS';
+            document.getElementById('modal-code-title').innerText = label;
+            document.getElementById('modal-code-val').innerText = codeValue;
+
+            const barcodeSvg = document.getElementById('barcode-svg');
+            const qrcodeDiv = document.getElementById('qrcode-div');
+
+            qrcodeDiv.classList.add('hidden');
+            barcodeSvg.classList.remove('hidden');
+            qrcodeDiv.innerHTML = '';
+
+            try {
+                let format = "CODE128";
+                if (/^\d{13}$/.test(codeValue)) format = "EAN13";
+                else if (/^\d{8}$/.test(codeValue)) format = "EAN8";
+
+                JsBarcode("#barcode-svg", codeValue, {
+                    format: format,
+                    lineColor: "#000",
+                    width: 2,
+                    height: 80,
+                    displayValue: true,
+                    fontSize: 14,
+                    margin: 10
+                });
+            } catch(e) {
+                JsBarcode("#barcode-svg", codeValue, {
+                    format: "CODE128",
+                    lineColor: "#000",
+                    width: 2,
+                    height: 80,
+                    displayValue: true,
+                    fontSize: 14,
+                    margin: 10
+                });
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function showQRCode(codeValue, label) {
+            const modal = document.getElementById('modal-code');
+            document.getElementById('modal-code-type').innerText = 'CÓDIGO QR';
+            document.getElementById('modal-code-title').innerText = label;
+            document.getElementById('modal-code-val').innerText = codeValue;
+
+            const barcodeSvg = document.getElementById('barcode-svg');
+            const qrcodeDiv = document.getElementById('qrcode-div');
+
+            barcodeSvg.classList.add('hidden');
+            qrcodeDiv.classList.remove('hidden');
+            qrcodeDiv.innerHTML = '';
+
+            new QRCode(qrcodeDiv, {
+                text: codeValue,
+                width: 160,
+                height: 160,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeCodeModal() {
+            document.getElementById('modal-code').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
