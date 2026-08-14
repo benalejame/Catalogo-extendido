@@ -16,7 +16,7 @@
     <script src="https://unpkg.com/html5-qrcode"></script>
     <!-- PapaParse -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 
     <style>
         body {
@@ -37,7 +37,7 @@
 </head>
 <body class="min-h-screen flex flex-col antialiased relative">
 
-    <!-- Vertical Margin Copyright (Margen Izquierdo Centrado) -->
+    <!-- Vertical Margin Copyright -->
     <div class="fixed left-1 top-1/2 -translate-y-1/2 z-20 select-none pointer-events-none opacity-50 hover:opacity-100 transition-opacity">
         <p class="vertical-text text-[10px] tracking-widest text-gray-400 font-bold whitespace-nowrap">
             Ben A. M. &copy; <span id="footer-year">2026</span>
@@ -78,7 +78,7 @@
                     <div class="relative flex-grow flex items-center">
                         <i data-lucide="search" class="absolute left-3.5 w-5 h-5 text-gray-400"></i>
                         <input type="text" id="search-input" 
-                               placeholder="Escribe o habla (ej: S26 blanco, iPhone 128)..." 
+                               placeholder="Escribe * para ver todo, o busca (ej: S26, 128)..." 
                                class="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-gray-900 placeholder-gray-400 transition"
                                oninput="handleSearchInput()"
                                onkeydown="handleSearchKeyDown(event)"
@@ -123,7 +123,7 @@
                     <i data-lucide="search-x" class="w-8 h-8"></i>
                 </div>
                 <h3 class="text-lg font-medium text-gray-800">Escribe, habla o escanea para buscar</h3>
-                <p class="text-sm text-gray-500 max-w-sm mx-auto">Busca en todos los catálogos cargados (570.csv y Apple.csv).</p>
+                <p class="text-sm text-gray-500 max-w-sm mx-auto">Usa <span class="font-semibold text-indigo-600">*</span> para mostrar todo el catálogo.</p>
             </div>
         </section>
 
@@ -225,11 +225,24 @@
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             updateFooterYear();
+
+            // Reemplazamos el estado inicial para identificar la vista de búsqueda
+            history.replaceState({ view: 'search' }, '');
+
             const savedPass = localStorage.getItem(STORAGE_KEY);
             if (savedPass) {
                 attemptDecryptWithPassword(savedPass, true);
             } else {
                 promptForPassword();
+            }
+        });
+
+        // Escucha del botón / gesto atrás del navegador o móvil
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.view === 'product') {
+                renderProductView(event.state.productIndex);
+            } else {
+                renderSearchView();
             }
         });
 
@@ -256,7 +269,6 @@
             attemptDecryptWithPassword(password, false);
         }
 
-        // Función de descifrado mediante la API nativa Web Crypto (PBKDF2 + AES-GCM 256)
         async function decryptBuffer(arrayBuffer, password) {
             if (arrayBuffer.byteLength < 28) {
                 throw new Error("Archivo demasiado corto");
@@ -299,7 +311,6 @@
         }
 
         async function attemptDecryptWithPassword(password, isAuto) {
-            let loadedCount = 0;
             let combinedData = [];
             let hasError = false;
 
@@ -365,7 +376,7 @@
             }
             return cur
                 .replace(/ï¿½/g, 'Á').replace(/Ã‘/g, 'Ñ').replace(/Ã“/g, 'Ó').replace(/Ãš/g, 'Ú')
-                .replace(/Ã/g, 'Á').replace(/Ã‰/g, 'É').replace(/Ã/g, 'Í').replace(/Ã³/g, 'ó')
+                .replace(/Ã /g, 'Á').replace(/Ã‰/g, 'É').replace(/Ã /g, 'Í').replace(/Ã³/g, 'ó')
                 .replace(/Ãº/g, 'ú').replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
                 .replace(/Ã±/g, 'ñ').replace(/\x81/g, 'Á').replace(/\x82/g, 'Á').replace(/\x8d/g, 'Í')
                 .replace(/\x93/g, 'Ó').replace(/\x9a/g, 'Ú').replace(/Â/g, '').replace(/\u00A0/g, ' ')
@@ -458,14 +469,29 @@
             });
         }
 
+        // Navegación hacia la búsqueda
         function navToSearch() {
+            if (window.history.state && window.history.state.view === 'product') {
+                window.history.back();
+            } else {
+                renderSearchView();
+            }
+        }
+
+        function renderSearchView() {
             document.getElementById('view-product').classList.add('hidden');
             document.getElementById('view-search').classList.remove('hidden');
             document.getElementById('btn-back').classList.add('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
+        // Navegación hacia el detalle de producto
         function navToProduct(itemIndex) {
+            history.pushState({ view: 'product', productIndex: itemIndex }, '');
+            renderProductView(itemIndex);
+        }
+
+        function renderProductView(itemIndex) {
             const item = currentResults[itemIndex];
             if (!item) return;
 
@@ -555,8 +581,13 @@
         function handleSearchInput() {
             const query = document.getElementById('search-input').value.trim();
             const clearBtn = document.getElementById('btn-clear-search');
-            if (query.length > 0) { clearBtn.classList.remove('hidden'); performSearch(query); }
-            else { clearBtn.classList.add('hidden'); resetSearch(); }
+            if (query.length > 0) { 
+                clearBtn.classList.remove('hidden'); 
+                performSearch(query); 
+            } else { 
+                clearBtn.classList.add('hidden'); 
+                resetSearch(); 
+            }
         }
 
         function clearSearch() { document.getElementById('search-input').value = ''; handleSearchInput(); }
@@ -564,8 +595,20 @@
 
         function performSearch(query) {
             if (!productDatabase || productDatabase.length === 0) return;
-            const terms = query.toLowerCase().split(/\s+/).filter(t => t.trim().length > 0);
-            if (terms.length === 0) { resetSearch(); return; }
+
+            // Soporte para comodín * (mostrar todos)
+            if (query.trim() === '*') {
+                currentResults = [...productDatabase];
+                renderResults('*');
+                return;
+            }
+
+            const terms = query.toLowerCase().split(/\s+/).filter(t => t.trim().length > 0 && t !== '*');
+            if (terms.length === 0) { 
+                currentResults = [...productDatabase];
+                renderResults(query); 
+                return; 
+            }
 
             const scored = [];
             for (let i = 0; i < productDatabase.length; i++) {
@@ -590,17 +633,20 @@
             list.innerHTML = '';
 
             if (currentResults.length === 0) {
-                emptyState.classList.remove('hidden'); resultsHeader.classList.add('hidden');
+                emptyState.classList.remove('hidden'); 
+                resultsHeader.classList.add('hidden');
                 emptyState.querySelector('h3').innerText = 'No se encontraron resultados';
                 emptyState.querySelector('p').innerText = `No hay ningún registro que coincida con "${query}"`;
                 return;
             }
 
-            emptyState.classList.add('hidden'); resultsHeader.classList.remove('hidden');
+            emptyState.classList.add('hidden'); 
+            resultsHeader.classList.remove('hidden');
             document.getElementById('results-count').innerText = currentResults.length;
-            document.getElementById('search-query-display').innerText = `"${query}"`;
+            document.getElementById('search-query-display').innerText = query === '*' ? 'Catálogo completo (*)' : `"${query}"`;
 
-            const limit = Math.min(currentResults.length, 50);
+            // Si es comodín se muestran todas las entradas, si no un máximo de 100
+            const limit = query === '*' ? currentResults.length : Math.min(currentResults.length, 100);
             for (let i = 0; i < limit; i++) {
                 const item = currentResults[i];
                 const card = document.createElement('div');
@@ -665,7 +711,7 @@
             const micBtn = document.getElementById('btn-voice-search');
             const searchInput = document.getElementById('search-input');
             if (micBtn) { micBtn.classList.remove('bg-red-500', 'text-white'); micBtn.classList.add('bg-gray-100', 'text-gray-600'); }
-            if (searchInput) searchInput.placeholder = 'Escribe o habla (ej: S26 blanco, iPhone 128)...';
+            if (searchInput) searchInput.placeholder = 'Escribe * para ver todo, o busca (ej: S26, 128)...';
         }
 
         function startScanner() {
