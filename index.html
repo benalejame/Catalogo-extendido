@@ -99,6 +99,12 @@
                     </button>
                 </div>
 
+                <!-- Top 10 Frequent Searches Tags -->
+                <div id="frequent-searches-container" class="hidden pt-1 space-y-2 border-t border-gray-50">
+                    <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">Búsquedas frecuentes:</span>
+                    <div id="frequent-tags" class="flex flex-wrap gap-1.5"></div>
+                </div>
+
                 <!-- Secondary Actions (Upload CSVs Icon) -->
                 <div class="flex justify-end pt-0.5">
                     <label title="Cargar CSVs locales" class="p-1.5 text-gray-400 hover:text-indigo-600 cursor-pointer transition rounded-lg hover:bg-gray-50 flex items-center justify-center">
@@ -218,15 +224,17 @@
         let html5QrCode = null;
         let speechRecognition = null;
         let isListening = false;
+        let searchDebounceTimer = null;
 
         const ENCRYPTED_CSV_FILES = ['570.csv.enc', 'Apple.csv.enc'];
         const STORAGE_KEY = 'extended_catalog_pass';
+        const SEARCH_FREQ_KEY = 'extended_catalog_freqs';
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             updateFooterYear();
+            renderFrequentSearches();
 
-            // Reemplazamos el estado inicial para identificar la vista de búsqueda
             history.replaceState({ view: 'search' }, '');
 
             const savedPass = localStorage.getItem(STORAGE_KEY);
@@ -237,7 +245,6 @@
             }
         });
 
-        // Escucha del botón / gesto atrás del navegador o móvil
         window.addEventListener('popstate', (event) => {
             if (event.state && event.state.view === 'product') {
                 renderProductView(event.state.productIndex);
@@ -255,6 +262,58 @@
             }
         }
 
+        // Gestión de Búsquedas Frecuentes
+        function getSearchFrequencies() {
+            try {
+                return JSON.parse(localStorage.getItem(SEARCH_FREQ_KEY)) || {};
+            } catch(e) {
+                return {};
+            }
+        }
+
+        function recordSearchTerm(term) {
+            const clean = term.trim().toLowerCase();
+            if (!clean || clean === '*' || clean.length < 2) return;
+
+            const freqs = getSearchFrequencies();
+            freqs[clean] = (freqs[clean] || 0) + 1;
+            try {
+                localStorage.setItem(SEARCH_FREQ_KEY, JSON.stringify(freqs));
+            } catch(e) {}
+        }
+
+        function renderFrequentSearches() {
+            const container = document.getElementById('frequent-searches-container');
+            const tagsBox = document.getElementById('frequent-tags');
+            const freqs = getSearchFrequencies();
+
+            // Obtener las 10 claves más repetidas
+            const sortedTerms = Object.keys(freqs)
+                .sort((a, b) => freqs[b] - freqs[a])
+                .slice(0, 10);
+
+            if (sortedTerms.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            tagsBox.innerHTML = '';
+            sortedTerms.forEach(term => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'px-2.5 py-1 bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-700 rounded-lg text-xs font-medium transition active:scale-95';
+                btn.innerText = term;
+                btn.onclick = () => {
+                    const input = document.getElementById('search-input');
+                    input.value = term;
+                    handleSearchInput();
+                };
+                tagsBox.appendChild(btn);
+            });
+
+            container.classList.remove('hidden');
+        }
+
         function promptForPassword() {
             document.getElementById('modal-password').classList.remove('hidden');
             document.getElementById('app-password').focus();
@@ -270,9 +329,7 @@
         }
 
         async function decryptBuffer(arrayBuffer, password) {
-            if (arrayBuffer.byteLength < 28) {
-                throw new Error("Archivo demasiado corto");
-            }
+            if (arrayBuffer.byteLength < 28) throw new Error("Archivo demasiado corto");
 
             const salt = arrayBuffer.slice(0, 16);
             const iv = arrayBuffer.slice(16, 28);
@@ -469,7 +526,6 @@
             });
         }
 
-        // Navegación hacia la búsqueda
         function navToSearch() {
             if (window.history.state && window.history.state.view === 'product') {
                 window.history.back();
@@ -485,7 +541,6 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Navegación hacia el detalle de producto
         function navToProduct(itemIndex) {
             history.pushState({ view: 'product', productIndex: itemIndex }, '');
             renderProductView(itemIndex);
@@ -590,13 +645,34 @@
             }
         }
 
-        function clearSearch() { document.getElementById('search-input').value = ''; handleSearchInput(); }
-        function resetSearch() { currentResults = []; document.getElementById('results-list').innerHTML = ''; document.getElementById('results-header').classList.add('hidden'); document.getElementById('empty-state').classList.remove('hidden'); }
+        function clearSearch() { 
+            document.getElementById('search-input').value = ''; 
+            handleSearchInput(); 
+        }
+
+        function resetSearch() { 
+            currentResults = []; 
+            document.getElementById('results-list').innerHTML = ''; 
+            document.getElementById('results-header').classList.add('hidden'); 
+            document.getElementById('empty-state').classList.remove('hidden'); 
+            renderFrequentSearches(); // Reaparecen las etiquetas frecuentes
+        }
 
         function performSearch(query) {
             if (!productDatabase || productDatabase.length === 0) return;
 
-            // Soporte para comodín * (mostrar todos)
+            // Ocultar etiquetas frecuentes mientras hay búsqueda activa
+            document.getElementById('frequent-searches-container').classList.add('hidden');
+
+            // Registrar término de búsqueda tras 800ms sin escribir
+            clearTimeout(searchDebounceTimer);
+            if (query.trim() !== '*') {
+                searchDebounceTimer = setTimeout(() => {
+                    recordSearchTerm(query);
+                }, 800);
+            }
+
+            // Soporte comodín *
             if (query.trim() === '*') {
                 currentResults = [...productDatabase];
                 renderResults('*');
@@ -645,7 +721,6 @@
             document.getElementById('results-count').innerText = currentResults.length;
             document.getElementById('search-query-display').innerText = query === '*' ? 'Catálogo completo (*)' : `"${query}"`;
 
-            // Si es comodín se muestran todas las entradas, si no un máximo de 100
             const limit = query === '*' ? currentResults.length : Math.min(currentResults.length, 100);
             for (let i = 0; i < limit; i++) {
                 const item = currentResults[i];
