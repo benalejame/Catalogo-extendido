@@ -1,863 +1,747 @@
 ﻿<!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Buscador de Productos & EAN Scanner</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- JsBarcode -->
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <!-- QRCode.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- Html5-QRCode Scanner -->
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <!-- PapaParse -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta charset="UTF-8">
+		<title>Simulador PlanMy iPhone</title>
+		
+		<!-- Vinculación del Favicon -->
+		<link rel="shortcut icon" type="image/png" href="favicon.png">
+		
+		<style type="text/css" media="print">
+				body {visibility: hidden; display: none;}
+		</style>
 
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f3f4f6;
-            color: #1f2937;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .modal-backdrop {
-            background-color: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(4px);
-        }
-        .vertical-text {
-            writing-mode: vertical-rl;
-            transform: rotate(180deg);
-        }
-    </style>
+<style>
+	/* --- VARIABLES DE DISEÑO (Estilo Apple Compacto) --- */
+	:root {
+		--bg-primary: #f5f5f7;
+		--bg-card: #ffffff;
+		--text-primary: #1d1d1f;
+		--text-secondary: #86868b;
+		--accent: #0071e3;
+		--accent-hover: #0077ed;
+		--border-color: #d2d2d7;
+		--radius-lg: 14px;
+		--radius-md: 10px;
+		--radius-sm: 5px;
+		--shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.04);
+		--shadow-strong: 0 6px 25px rgba(0, 0, 0, 0.06);
+		--transition: all 0.2s ease;
+		
+		--green-total: #34c759;
+		--red-interest: #ff3b30;
+		--purple-savings: #af40ff;
+	}
+
+	body {
+		background-color: var(--bg-primary);
+		color: var(--text-primary);
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		justify-content: center;
+		min-height: 100vh;
+	}
+	
+	#cuerpo {
+		width: 96%;
+		max-width: 600px;
+		margin: 15px auto;
+		padding: 20px 25px;
+		background: var(--bg-card);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-strong);
+		box-sizing: border-box;
+	}
+
+	h2 {
+		font-size: 1.8rem;
+		font-weight: 700;
+		text-align: center;
+		margin-top: 0;
+		margin-bottom: 20px;
+		letter-spacing: -0.5px;
+	}
+
+	.simulador-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.col-izquierda, .col-derecha {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		width: 100%;
+	}
+
+	hr {
+		border: 0;
+		height: 1px;
+		background: var(--border-color);
+		margin: 8px 0;
+	}
+
+	/* --- ESTADO CARGANDO --- */
+	.loading-card {
+		background: #f5f5f7;
+		padding: 30px;
+		border-radius: var(--radius-md);
+		text-align: center;
+		font-size: 1.1rem;
+		color: var(--text-secondary);
+		border: 1px solid var(--border-color);
+	}
+
+	/* --- ACORDEONES Y BOTONES --- */
+	.family-accordion {
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		background: var(--bg-card);
+		margin-bottom: 6px;
+	}
+
+	.family-header {
+		padding: 10px 14px;
+		font-size: 1rem;
+		font-weight: 600;
+		cursor: pointer;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		user-select: none;
+		background: #fbfbfd;
+	}
+
+	.family-header::after {
+		content: '▼';
+		font-size: 0.65rem;
+		color: var(--text-secondary);
+		transition: transform 0.2s ease;
+	}
+
+	.family-accordion.active .family-header::after { transform: rotate(-180deg); }
+	.family-content { max-height: 0; overflow: hidden; transition: max-height 0.25s ease-out; }
+	.family-accordion.active .family-content { max-height: 450px; }
+
+	.button-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+		gap: 6px;
+		padding: 10px;
+		box-sizing: border-box;
+	}
+
+	button.pill-btn {
+		background: #f5f5f7;
+		border: 1px solid var(--border-color);
+		color: var(--text-primary);
+		padding: 6px 4px;
+		font-size: 0.8rem;
+		font-weight: 500;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: var(--transition);
+		text-align: center;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	button.pill-btn:hover { background: #e8e8ed; border-color: #a1a1a6; }
+	button.pill-btn.selected { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+
+	.section-card {
+		background: #ffffff;
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-md);
+		padding: 12px;
+	}
+
+	.section-title {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text-secondary);
+		margin-bottom: 8px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	/* --- TARJETA DE RESULTADOS --- */
+	.resultado-card {
+		background: #f5f5f7;
+		border-radius: var(--radius-md);
+		padding: 20px;
+		box-shadow: var(--shadow-subtle);
+		text-align: center;
+		border: 1px solid #e8e8ed;
+		margin-top: 5px;
+	}
+
+	.resultado-card h3 { margin-top: 0; font-size: 0.95rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 12px; }
+	
+	.titulo-importe-base {
+		color: var(--text-primary);
+		font-weight: 600;
+	}
+
+	.precio-enlace { font-size: 2rem; color: var(--accent); text-decoration: none; font-weight: 800; display: inline-block; margin-bottom: 12px; border-bottom: 2px dashed var(--accent); transition: var(--transition); }
+	.precio-enlace:hover { color: var(--accent-hover); }
+	
+	.cuota-bloque { font-size: 1.1rem; line-height: 1.5; margin-bottom: 6px; }
+	.cuota-highlight { font-size: 1.35rem; color: var(--accent); font-weight: 700; }
+	
+	.cuota-numero-azul {
+		color: var(--accent);
+		font-weight: 700;
+	}
+
+	.linea-unificada {
+		font-size: 0.95rem;
+		line-height: 1.5;
+		color: var(--text-primary);
+		margin-top: 2px;
+		margin-bottom: 2px;
+	}
+
+	.total-verde {
+		color: var(--green-total);
+		font-weight: 700;
+	}
+
+	.interes-rojo {
+		color: var(--red-interest);
+		font-weight: 700;
+	}
+
+	.ahorro-morado {
+		color: var(--purple-savings);
+		font-weight: 700;
+	}
+
+	.placeholder-resultado {
+		border: 2px dashed var(--border-color);
+		border-radius: var(--radius-md);
+		padding: 40px 15px;
+		text-align: center;
+		color: var(--text-secondary);
+		font-size: 0.95rem;
+		margin-top: 5px;
+	}
+
+	.aviso-footer { text-align: center; color: var(--text-secondary); font-size: 0.8rem; margin-top: 15px; width: 100%; }
+	
+	.firma-autor {
+		font-size: 0.75rem;
+		color: #a1a1a6;
+		margin-top: 8px;
+		display: block;
+	}
+
+	/* --- MODALES --- */
+	.modal-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background: rgba(0, 0, 0, 0.4);
+		backdrop-filter: blur(4px);
+		display: none;
+		justify-content: center;
+		align-items: center;
+		z-index: 9999;
+		animation: fadeIn 0.2s ease;
+	}
+
+	.modal-box {
+		background: var(--bg-card);
+		padding: 24px;
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-strong);
+		width: 90%;
+		max-width: 360px;
+		text-align: center;
+		box-sizing: border-box;
+		animation: scaleUp 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+	}
+
+	.modal-box h4 { margin-top: 0; margin-bottom: 14px; font-size: 1.15rem; font-weight: 600; }
+	.modal-input { width: 100%; padding: 10px; font-size: 1.1rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); box-sizing: border-box; margin-bottom: 18px; text-align: center; outline: none; }
+	.modal-input:focus { border-color: var(--accent); }
+	.modal-buttons { display: flex; gap: 10px; justify-content: center; }
+	.modal-btn { flex: 1; padding: 10px; font-size: 0.95rem; font-weight: 500; border-radius: var(--radius-sm); cursor: pointer; border: none; outline: none; }
+	.modal-btn-cancel { background: #f5f5f7; color: var(--text-primary); }
+	.modal-btn-cancel:hover { background: #e8e8ed; }
+	.modal-btn-confirm { background: var(--accent); color: #ffffff; }
+	.modal-btn-confirm:hover { background: var(--accent-hover); }
+
+	.error-msg {
+		color: var(--red-interest);
+		font-size: 0.85rem;
+		margin-bottom: 12px;
+		display: none;
+	}
+
+	@media only screen and (max-width: 900px) {	
+		#cuerpo { margin: 5px auto; padding: 12px; border-radius: 0; width: 100%; }
+	}
+</style>
+
+<script>
+	const LOCAL_STORAGE_KEY = "planmy_app_password";
+	const ARCHIVO_CIFRADO = "PVP y RV.enc";
+
+	let datos_completos = {};
+	let familias = {};
+
+	let modeloSeleccionado = "";
+	let capacidadSeleccionada = "";
+	let VR = 0;
+	let VR2 = 0;
+	let ultimo_pv = 0;
+	let bufferEncryptedData = null;
+
+	// DESCIFRADO WEB CRYPTO API (AES-GCM + PBKDF2)
+	async function descifrarDatos(arrayBuffer, password) {
+		const enc = new TextEncoder();
+		const data = new Uint8Array(arrayBuffer);
+
+		const salt = data.slice(0, 16);
+		const iv = data.slice(16, 28);
+		const ciphertext = data.slice(28);
+
+		const passwordKey = await window.crypto.subtle.importKey(
+			"raw",
+			enc.encode(password),
+			{ name: "PBKDF2" },
+			false,
+			["deriveKey"]
+		);
+
+		const key = await window.crypto.subtle.deriveKey(
+			{
+				name: "PBKDF2",
+				salt: salt,
+				iterations: 100000,
+				hash: "SHA-256"
+			},
+			passwordKey,
+			{ name: "AES-GCM", length: 256 },
+			false,
+			["decrypt"]
+		);
+
+		const decryptedContent = await window.crypto.subtle.decrypt(
+			{ name: "AES-GCM", iv: iv },
+			key,
+			ciphertext
+		);
+
+		const dec = new TextDecoder();
+		return dec.decode(decryptedContent);
+	}
+
+	// CARGA AUTOMÁTICA DEL ARCHIVO .ENC
+	async function iniciarCargaApp() {
+		try {
+			const response = await fetch(ARCHIVO_CIFRADO);
+			if (!response.ok) {
+				throw new Error(`No se pudo cargar el archivo '${ARCHIVO_CIFRADO}'.`);
+			}
+			bufferEncryptedData = await response.arrayBuffer();
+
+			const passGuardada = localStorage.getItem(LOCAL_STORAGE_KEY);
+			if (passGuardada) {
+				intentarDescifrado(passGuardada, true);
+			} else {
+				pedirContrasenaModal();
+			}
+		} catch (error) {
+			console.error(error);
+			document.getElementById("loading-message").innerHTML = 
+				"<span style='color:var(--red-interest); font-weight:600;'>Error al cargar el archivo de tarifas.</span><br>" +
+				`Asegúrate de haber generado <b>${ARCHIVO_CIFRADO}</b> y tenerlo junto a este archivo HTML.`;
+		}
+	}
+
+	async function intentarDescifrado(password, esAutoGuardado = false) {
+		try {
+			const csvTexto = await descifrarDatos(bufferEncryptedData, password);
+			localStorage.setItem(LOCAL_STORAGE_KEY, password);
+			cerrarModalPassword();
+			procesarContenidoCSV(csvTexto);
+		} catch (e) {
+			console.warn("Fallo de descifrado:", e);
+			localStorage.removeItem(LOCAL_STORAGE_KEY);
+			pedirContrasenaModal("Contraseña incorrecta. Introduce la clave de nuevo.");
+		}
+	}
+
+	function pedirContrasenaModal(mensajeError = "") {
+		const modal = document.getElementById("password-modal");
+		const input = document.getElementById("modal-pass-input");
+		const errDiv = document.getElementById("pass-error-msg");
+		
+		input.value = "";
+		if (mensajeError) {
+			errDiv.textContent = mensajeError;
+			errDiv.style.display = "block";
+		} else {
+			errDiv.style.display = "none";
+		}
+
+		modal.style.display = "flex";
+		input.focus();
+	}
+
+	function cerrarModalPassword() {
+		document.getElementById("password-modal").style.display = "none";
+	}
+
+	function confirmarPasswordModal() {
+		const input = document.getElementById("modal-pass-input");
+		const password = input.value.trim();
+		if (password) {
+			intentarDescifrado(password, false);
+		} else {
+			mostrarErrorPassword("Introduce una contraseña válida.");
+		}
+	}
+
+	function mostrarErrorPassword(txt) {
+		const errDiv = document.getElementById("pass-error-msg");
+		errDiv.textContent = txt;
+		errDiv.style.display = "block";
+	}
+
+	// PROCESADO EXCLUSIVO PARA MODELOS IPHONE
+	function procesarContenidoCSV(contents) {
+		const lineas = contents.split(/\r?\n/);
+		
+		datos_completos = {};
+		familias = {
+			"Familia iPhone 17 & Air": [],
+			"Familia iPhone 16 & Anteriores": []
+		};
+
+		for (let i = 1; i < lineas.length; i++) {
+			let linea = lineas[i].trim();
+			if (!linea) continue;
+
+			let columnas = linea.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+			if (columnas.length < 3) continue;
+
+			let nombreBruto = columnas[0].replace(/"/g, "").trim();
+			let pvp = parseFloat(columnas[1].replace(/"/g, "").replace(/€/g, "").replace(/,/g, "").trim());
+			let vr24 = parseFloat(columnas[2].replace(/"/g, "").replace(/€/g, "").replace(/,/g, "").trim());
+			
+			let vr36 = (columnas[3] && columnas[3].trim() !== "") ? parseFloat(columnas[3].replace(/"/g, "").replace(/€/g, "").replace(/,/g, "").trim()) : 0;
+
+			if (isNaN(pvp) || isNaN(vr24)) continue;
+
+			let matchCapacidad = nombreBruto.match(/(128GB|256GB|512GB|1TB|2TB)/i);
+			if (!matchCapacidad) continue;
+
+			let capacidad = matchCapacidad[0].replace(/GB/i, " GB").replace(/TB/i, " TB");
+			let modelo = nombreBruto.replace(matchCapacidad[0], "").trim();
+
+			if (!datos_completos[modelo]) {
+				datos_completos[modelo] = {};
+				if (modelo.includes("17") || modelo.toLowerCase().includes("air")) {
+					familias["Familia iPhone 17 & Air"].push(modelo);
+				} else {
+					familias["Familia iPhone 16 & Anteriores"].push(modelo);
+				}
+			}
+
+			datos_completos[modelo][capacidad] = { "PVP": pvp, "VR": vr24, "VR2": isNaN(vr36) ? 0 : vr36 };
+		}
+
+		familias["Familia iPhone 17 & Air"] = [...new Set(familias["Familia iPhone 17 & Air"])];
+		familias["Familia iPhone 16 & Anteriores"] = [...new Set(familias["Familia iPhone 16 & Anteriores"])];
+
+		document.getElementById("upload-container").style.display = "none";
+		document.getElementById("workspace").style.display = "flex";
+		construirFamilias();
+	}
+
+	function construirFamilias() {
+		const container = document.getElementById("list-container");
+		container.innerHTML = "";
+
+		Object.keys(familias).forEach((famNombre) => {
+			if (familias[famNombre].length === 0) return;
+
+			const accDiv = document.createElement("div");
+			accDiv.className = "family-accordion";
+
+			const header = document.createElement("div");
+			header.className = "family-header";
+			header.textContent = famNombre;
+			header.addEventListener("click", () => {
+				const activo = accDiv.classList.contains("active");
+				document.querySelectorAll(".family-accordion").forEach(el => el.classList.remove("active"));
+				if (!activo) accDiv.classList.add("active");
+			});
+
+			const content = document.createElement("div");
+			content.className = "family-content";
+
+			const btnGrid = document.createElement("div");
+			btnGrid.className = "button-grid";
+
+			familias[famNombre].forEach(modelo => {
+				const btn = document.createElement("button");
+				btn.className = "pill-btn modelo-btn";
+				btn.textContent = modelo;
+				btn.title = modelo;
+				btn.addEventListener("click", (e) => {
+					e.stopPropagation();
+					seleccionarModelo(modelo, btn);
+				});
+				btnGrid.appendChild(btn);
+			});
+
+			content.appendChild(btnGrid);
+			accDiv.appendChild(header);
+			accDiv.appendChild(content);
+			container.appendChild(accDiv);
+		});
+	}
+
+	function seleccionarModelo(modelo, elementoBoton) {
+		document.querySelectorAll(".modelo-btn").forEach(btn => btn.classList.remove("selected"));
+		elementoBoton.classList.add("selected");
+
+		modeloSeleccionado = modelo;
+		capacidadSeleccionada = "";
+		
+		document.getElementById("resultado").innerHTML = `
+			<div class="placeholder-resultado">
+				Selecciona una capacidad de almacenamiento para calcular la financiación.
+			</div>
+		`;
+
+		const ramaCapacidades = datos_completos[modelo];
+		const capacidades = Object.keys(ramaCapacidades);
+
+		const capSection = document.getElementById("capacidad-section");
+		capSection.style.display = "block";
+		
+		const capGrid = document.getElementById("capacidad-grid");
+		capGrid.innerHTML = "";
+
+		capacidades.forEach(cap => {
+			const btn = document.createElement("button");
+			btn.className = "pill-btn capacidad-btn";
+			btn.textContent = cap;
+			btn.addEventListener("click", () => {
+				document.querySelectorAll(".capacidad-btn").forEach(b => b.classList.remove("selected"));
+				btn.classList.add("selected");
+				capacidadSeleccionada = cap;
+				const data = datos_completos[modeloSeleccionado][cap];
+				ultimo_pv = data["PVP"];
+				VR = data["VR"];
+				VR2 = data["VR2"];
+				dibujaCuota(ultimo_pv, VR, VR2);
+				desplazarAbajo();
+			});
+			capGrid.appendChild(btn);
+		});
+	}
+
+	function abrirModalPrecio() {
+		const modal = document.getElementById("custom-price-modal");
+		const input = document.getElementById("modal-price-input");
+		input.value = ultimo_pv.toFixed(2);
+		modal.style.display = "flex";
+		input.focus();
+		input.select();
+	}
+
+	function cerrarModalPrecio() {
+		document.getElementById("custom-price-modal").style.display = "none";
+	}
+
+	function confirmarNuevoPrecio() {
+		const input = document.getElementById("modal-price-input");
+		let nuevo_pv = parseFloat(input.value);
+		if (nuevo_pv != null && !isNaN(nuevo_pv) && nuevo_pv > 0) {
+			ultimo_pv = nuevo_pv;
+			dibujaCuota(nuevo_pv, VR, VR2);
+			cerrarModalPrecio();
+			desplazarAbajo();
+		} else {
+			alert("Por favor, introduce un importe numérico válido.");
+		}
+	}
+
+	function desplazarAbajo() {
+		setTimeout(() => {
+			window.scrollTo({
+				top: document.body.scrollHeight,
+				behavior: 'smooth'
+			});
+		}, 50);
+	}
+
+	function calcula(pv, rate, nper, fv) {
+		return (rate * (pv - fv / Math.pow(1 + rate, nper))) / (1 - Math.pow(1 + rate, -nper));
+	}
+
+	function dibujaCuota(pv, fv, fv2) {	
+		const TIN24 = 10.57;
+		const TIN36 = 11.42;
+
+		// --- Modalidad 24 meses ---
+		let rate24 = TIN24/100/12; 
+		let pmt24 = calcula(pv, rate24, 24, fv);
+		let intereses24 = (pmt24 * 24) + fv - pv;
+		let totalPagar24 = (pmt24 * 24) + fv;
+
+		let textoCuotas24 = '<span class="cuota-numero-azul">24</span> cuotas de <span class="cuota-highlight">' + formatearImporte(pmt24) + ' €</span>';
+
+		let lineaAhorroHTML = '';
+		if (totalPagar24 < pv) {
+			let totalAhorrado24 = pv - totalPagar24;
+			lineaAhorroHTML = '<div class="linea-unificada">Total ahorrado: <span class="ahorro-morado">' + formatearImporte(totalAhorrado24) + ' €</span></div>';
+		}
+
+		// --- Modalidad 36 meses (Solo si existe VR2 > 0: Air, 16 y 16e) ---
+		let bloque36HTML = '';
+		if (fv2 && fv2 > 0) {
+			let rate36 = TIN36/100/12; 
+			let pmt36 = calcula(pv, rate36, 36, fv2);
+			let totalPagar36 = (pmt36 * 36) + fv2;
+			let intereses36 = totalPagar36 - pv;
+			let textoCuotas36 = '<span class="cuota-numero-azul">36</span> cuotas de <span class="cuota-highlight">' + formatearImporte(pmt36) + ' €</span>';
+
+			bloque36HTML += '<hr>';
+			bloque36HTML += '<div class="cuota-bloque">' + textoCuotas36 + '</div>';
+			bloque36HTML += '<div class="linea-unificada">Última cuota final de <b>' + formatearImporte(fv2) + ' €</b></div>';
+			bloque36HTML += '<div class="linea-unificada">Importe total a pagar: <span class="total-verde">' + formatearImporte(totalPagar36) + ' €</span></div>';
+			bloque36HTML += '<div class="linea-unificada">Intereses devengados: <span class="interes-rojo">' + formatearImporte(intereses36) + ' €</span></div>';
+		} else {
+			bloque36HTML += '<hr>';
+			bloque36HTML += '<div style="color: var(--text-secondary); font-size: 0.9rem; font-style: italic; padding: 8px 0;">';
+			bloque36HTML += 'Modalidad a 36 meses no disponible para este modelo';
+			bloque36HTML += '</div>';
+		}
+
+		let codigo_enlace = '<a class="precio-enlace" title="Haz clic para modificar el precio" href="#" onclick="abrirModalPrecio();return false;">' + formatearImporte(pv) + ' €</a>';	  
+		
+		let HTML_final = '<div class="resultado-card">';
+		HTML_final += '<h3>Cálculo Financiación</h3>';
+		HTML_final += '<span class="titulo-importe-base">Importe a Financiar:</span> ' + codigo_enlace + '<br><hr>';
+		
+		HTML_final += '<div class="cuota-bloque">' + textoCuotas24 + '</div>';
+		HTML_final += '<div class="linea-unificada">Última cuota final de <b>' + formatearImporte(fv) + ' €</b></div>';
+		HTML_final += '<div class="linea-unificada">Importe total a pagar: <span class="total-verde">' + formatearImporte(totalPagar24) + ' €</span></div>';
+		HTML_final += '<div class="linea-unificada">Intereses devengados: <span class="interes-rojo">' + formatearImporte(intereses24) + ' €</span></div>';
+		HTML_final += lineaAhorroHTML;
+		
+		HTML_final += bloque36HTML;
+		HTML_final += '</div>';
+
+		let txt_resultado = document.getElementById("resultado");
+		txt_resultado.innerHTML = HTML_final;
+	}
+
+	function formatearImporte(valor) {
+		if (Number.EPSILON === undefined) Number.EPSILON = Math.pow(2, -52);
+		let valorRedondeado = Math.round((valor + Number.EPSILON) * 100) / 100;
+		return valorRedondeado.toFixed(2);
+	}
+
+	function actualizarFirmaFechas() {
+		const anioActual = new Date().getFullYear();
+		const textoRango = anioActual > 2026 ? `2026 - ${anioActual}` : '2026';
+		document.getElementById("rango-fechas").textContent = textoRango;
+	}
+
+	document.addEventListener('DOMContentLoaded', () => {
+		iniciarCargaApp();
+		actualizarFirmaFechas();
+
+		document.getElementById("modal-price-input").addEventListener("keypress", (e) => {
+			if (e.key === "Enter") confirmarNuevoPrecio();
+		});
+
+		document.getElementById("modal-pass-input").addEventListener("keypress", (e) => {
+			if (e.key === "Enter") confirmarPasswordModal();
+		});
+	});
+</script>
 </head>
-<body class="min-h-screen flex flex-col antialiased relative">
-
-    <!-- Vertical Margin Copyright -->
-    <div class="fixed left-1 top-1/2 -translate-y-1/2 z-20 select-none pointer-events-none opacity-50 hover:opacity-100 transition-opacity">
-        <p class="vertical-text text-[10px] tracking-widest text-gray-400 font-bold whitespace-nowrap">
-            Ben A. M. &copy; <span id="footer-year">2026</span>
-        </p>
-    </div>
-
-    <!-- Header / Navbar -->
-    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-30">
-        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center space-x-3 cursor-pointer" onclick="navToSearch()">
-                <div class="p-2 bg-indigo-700 rounded-lg">
-                    <i data-lucide="smartphone" class="w-6 h-6"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-lg leading-tight">Catálogo Extendido</h1>
-                </div>
-            </div>
-            <button id="btn-back" onclick="navToSearch()" class="hidden flex items-center space-x-1 bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
-                <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                <span>Volver</span>
-            </button>
-        </div>
-    </header>
-
-    <!-- Main Content Container -->
-    <main class="flex-grow max-w-4xl w-full mx-auto p-4 pl-5 sm:pl-6">
-
-        <!-- VIEW 1: SEARCH PAGE -->
-        <section id="view-search" class="space-y-4">
-            <!-- Search Box Card -->
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 space-y-3 relative">
-                <label for="search-input" class="block text-sm font-semibold text-gray-700">
-                    Búsqueda de productos
-                </label>
-
-                <!-- Search Input + Voice Button + Inline Scan Button -->
-                <div class="flex items-center gap-2">
-                    <div class="relative flex-grow flex items-center">
-                        <i data-lucide="search" class="absolute left-3.5 w-5 h-5 text-gray-400"></i>
-                        <input type="text" id="search-input" 
-                               placeholder="Escribe * para ver todo, o busca (ej: S26, 128)..." 
-                               class="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-gray-900 placeholder-gray-400 transition"
-                               oninput="handleSearchInput()"
-                               onkeydown="handleSearchKeyDown(event)"
-                               autocomplete="off">
-                        <button id="btn-clear-search" onclick="clearSearch()" class="hidden absolute right-3 text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x-circle" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-
-                    <!-- Voice Search Button -->
-                    <button id="btn-voice-search" onclick="toggleVoiceSearch()" title="Búsqueda por voz" class="p-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl shadow-sm transition active:scale-95 flex-shrink-0 flex items-center justify-center">
-                        <i data-lucide="mic" class="w-6 h-6"></i>
-                    </button>
-
-                    <!-- Small Scan EAN Button next to search bar -->
-                    <button onclick="startScanner()" title="Escanear Código EAN 13" class="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition active:scale-95 flex-shrink-0 flex items-center justify-center">
-                        <i data-lucide="scan-barcode" class="w-6 h-6"></i>
-                    </button>
-                </div>
-
-                <!-- Top 10 Frequent Searches Tags -->
-                <div id="frequent-searches-container" class="hidden pt-1 space-y-2 border-t border-gray-50">
-                    <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">Búsquedas frecuentes:</span>
-                    <div id="frequent-tags" class="flex flex-wrap gap-1.5"></div>
-                </div>
-
-                <!-- Secondary Actions (Upload CSVs Icon) -->
-                <div class="flex justify-end pt-0.5">
-                    <label title="Cargar CSVs locales" class="p-1.5 text-gray-400 hover:text-indigo-600 cursor-pointer transition rounded-lg hover:bg-gray-50 flex items-center justify-center">
-                        <i data-lucide="file-up" class="w-4 h-4"></i>
-                        <input type="file" id="csv-file-input" accept=".csv,.enc" multiple class="hidden" onchange="handleFileUpload(event)">
-                    </label>
-                </div>
-            </div>
-
-            <!-- Results Section Header -->
-            <div id="results-header" class="hidden flex items-center justify-between text-sm text-gray-500 px-1 pt-1">
-                <span>Coincidencias: <strong id="results-count" class="text-gray-900">0</strong></span>
-                <span id="search-query-display" class="italic truncate max-w-[200px]"></span>
-            </div>
-
-            <!-- Results List -->
-            <div id="results-list" class="space-y-2"></div>
-
-            <!-- Empty State -->
-            <div id="empty-state" class="text-center py-12 px-4 space-y-3">
-                <div class="inline-flex p-4 bg-indigo-50 rounded-full text-indigo-500 mb-2">
-                    <i data-lucide="search-x" class="w-8 h-8"></i>
-                </div>
-                <h3 class="text-lg font-medium text-gray-800">Escribe, habla o escanea para buscar</h3>
-                <p class="text-sm text-gray-500 max-w-sm mx-auto">Usa <span class="font-semibold text-indigo-600">*</span> para mostrar todo el catálogo.</p>
-            </div>
-        </section>
-
-        <!-- VIEW 2: PRODUCT DETAIL PAGE -->
-        <section id="view-product" class="hidden space-y-6">
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 space-y-4">
-                <div class="flex items-start justify-between gap-4">
-                    <div>
-                        <span id="prod-marca" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 uppercase tracking-wide mb-2">MARCA</span>
-                        <h2 id="prod-descripcion" class="text-xl sm:text-2xl font-bold text-gray-900 leading-tight"></h2>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2 pt-1" id="prod-quick-specs"></div>
-            </div>
-
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 space-y-4">
-                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                    <i data-lucide="qr-code" class="w-4 h-4 text-indigo-600"></i>
-                    Generador de Códigos
-                </h3>
-                <p class="text-xs text-gray-500">Haz clic en los botones para generar el código de barras o QR escaneable.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="ean-buttons-container"></div>
-            </div>
-
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                    <h3 class="font-semibold text-gray-800 flex items-center gap-2">
-                        <i data-lucide="database" class="w-4 h-4 text-indigo-600"></i>
-                        Ficha Completa de Datos
-                    </h3>
-                </div>
-                <div class="divide-y divide-gray-100 text-sm" id="prod-details-table"></div>
-            </div>
-        </section>
-    </main>
-
-    <!-- MODAL: PASSWORD PROMPT -->
-    <div id="modal-password" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-center">
-            <div class="inline-flex p-3 bg-indigo-50 text-indigo-600 rounded-full mb-1">
-                <i data-lucide="lock" class="w-6 h-6"></i>
-            </div>
-            <h3 class="text-lg font-bold text-gray-900">Acceso Protegido</h3>
-            <p class="text-xs text-gray-500">Introduce la contraseña para descifrar la base de datos.</p>
-            <input type="password" id="app-password" placeholder="Contraseña secreta" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-sm" onkeydown="if(event.key==='Enter') unlockDatabase()">
-            <button onclick="unlockDatabase()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
-                Desbloquear Catálogo
-            </button>
-        </div>
-    </div>
-
-    <!-- MODAL: CAMERA SCANNER -->
-    <div id="modal-scanner" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
-            <div class="p-4 bg-indigo-600 text-white flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                    <i data-lucide="camera" class="w-5 h-5"></i>
-                    <h3 class="font-semibold">Escanear Código EAN 13</h3>
-                </div>
-                <button onclick="stopScanner()" class="p-1 rounded-lg hover:bg-indigo-700 transition"><i data-lucide="x" class="w-6 h-6"></i></button>
-            </div>
-            <div class="p-4 flex-grow flex flex-col items-center justify-center bg-black relative">
-                <div id="interactive-reader" class="w-full"></div>
-            </div>
-            <div class="p-4 bg-gray-50 flex justify-end">
-                <button onclick="stopScanner()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-xl text-sm font-medium">Cancelar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL: BARCODE / QR DISPLAY -->
-    <div id="modal-code" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 relative">
-            <button onclick="closeCodeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1"><i data-lucide="x" class="w-6 h-6"></i></button>
-            <div>
-                <span id="modal-code-type" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 uppercase tracking-wider mb-1">CÓDIGO DE BARRAS</span>
-                <h3 id="modal-code-title" class="text-lg font-bold text-gray-900">EAN-13</h3>
-                <p id="modal-code-val" class="text-sm font-mono text-gray-600 mt-0.5"></p>
-            </div>
-            <div class="py-4 px-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center min-h-[160px]">
-                <svg id="barcode-svg" class="hidden max-w-full h-auto"></svg>
-                <div id="qrcode-div" class="hidden"></div>
-            </div>
-            <button onclick="closeCodeModal()" class="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold">Cerrar</button>
-        </div>
-    </div>
-
-    <!-- Main Logic -->
-    <script>
-        let productDatabase = [];
-        let currentResults = [];
-        let html5QrCode = null;
-        let speechRecognition = null;
-        let isListening = false;
-        let searchDebounceTimer = null;
-
-        const ENCRYPTED_CSV_FILES = ['570.csv.enc', 'Apple.csv.enc'];
-        const STORAGE_KEY = 'extended_catalog_pass';
-        const SEARCH_FREQ_KEY = 'extended_catalog_freqs';
-
-        document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
-            updateFooterYear();
-            renderFrequentSearches();
-
-            history.replaceState({ view: 'search' }, '');
-
-            const savedPass = localStorage.getItem(STORAGE_KEY);
-            if (savedPass) {
-                attemptDecryptWithPassword(savedPass, true);
-            } else {
-                promptForPassword();
-            }
-        });
-
-        window.addEventListener('popstate', (event) => {
-            if (event.state && event.state.view === 'product') {
-                renderProductView(event.state.productIndex);
-            } else {
-                renderSearchView();
-            }
-        });
-
-        function updateFooterYear() {
-            const startYear = 2026;
-            const currentYear = new Date().getFullYear();
-            const yearElem = document.getElementById('footer-year');
-            if (yearElem) {
-                yearElem.innerText = currentYear > startYear ? `${startYear}-${currentYear}` : `${startYear}`;
-            }
-        }
-
-        // Gestión de Búsquedas Frecuentes
-        function getSearchFrequencies() {
-            try {
-                return JSON.parse(localStorage.getItem(SEARCH_FREQ_KEY)) || {};
-            } catch(e) {
-                return {};
-            }
-        }
-
-        function recordSearchTerm(term) {
-            const clean = term.trim().toLowerCase();
-            if (!clean || clean === '*' || clean.length < 2) return;
-
-            const freqs = getSearchFrequencies();
-            freqs[clean] = (freqs[clean] || 0) + 1;
-            try {
-                localStorage.setItem(SEARCH_FREQ_KEY, JSON.stringify(freqs));
-            } catch(e) {}
-        }
-
-        function removeSearchTerm(termToRemove) {
-            const freqs = getSearchFrequencies();
-            delete freqs[termToRemove];
-            try {
-                localStorage.setItem(SEARCH_FREQ_KEY, JSON.stringify(freqs));
-            } catch(e) {}
-            renderFrequentSearches();
-        }
-
-        function renderFrequentSearches() {
-            const container = document.getElementById('frequent-searches-container');
-            const tagsBox = document.getElementById('frequent-tags');
-            const freqs = getSearchFrequencies();
-
-            const sortedTerms = Object.keys(freqs)
-                .sort((a, b) => freqs[b] - freqs[a])
-                .slice(0, 10);
-
-            if (sortedTerms.length === 0) {
-                container.classList.add('hidden');
-                return;
-            }
-
-            tagsBox.innerHTML = '';
-            sortedTerms.forEach(term => {
-                const tag = document.createElement('div');
-                tag.className = 'inline-flex items-center bg-gray-100 hover:bg-indigo-50 text-gray-700 hover:text-indigo-600 rounded-lg text-xs font-medium pl-2.5 pr-1.5 py-1 transition group cursor-pointer';
-
-                // Texto del término
-                const textSpan = document.createElement('span');
-                textSpan.innerText = term;
-                textSpan.onclick = () => {
-                    const input = document.getElementById('search-input');
-                    input.value = term;
-                    handleSearchInput();
-                };
-
-                // Icono X para eliminar la etiqueta
-                const delBtn = document.createElement('button');
-                delBtn.type = 'button';
-                delBtn.title = `Eliminar "${term}"`;
-                delBtn.className = 'ml-1.5 p-0.5 text-gray-400 hover:text-red-500 rounded hover:bg-gray-200 transition';
-                delBtn.innerHTML = '<i data-lucide="x" class="w-3 h-3"></i>';
-                delBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    removeSearchTerm(term);
-                };
-
-                tag.appendChild(textSpan);
-                tag.appendChild(delBtn);
-                tagsBox.appendChild(tag);
-            });
-
-            container.classList.remove('hidden');
-            lucide.createIcons();
-        }
-
-        function promptForPassword() {
-            document.getElementById('modal-password').classList.remove('hidden');
-            document.getElementById('app-password').focus();
-        }
-
-        function unlockDatabase() {
-            const password = document.getElementById('app-password').value;
-            if (!password) {
-                alert("Introduce la contraseña.");
-                return;
-            }
-            attemptDecryptWithPassword(password, false);
-        }
-
-        async function decryptBuffer(arrayBuffer, password) {
-            if (arrayBuffer.byteLength < 28) throw new Error("Archivo demasiado corto");
-
-            const salt = arrayBuffer.slice(0, 16);
-            const iv = arrayBuffer.slice(16, 28);
-            const data = arrayBuffer.slice(28);
-
-            const enc = new TextEncoder();
-            const passwordKey = await window.crypto.subtle.importKey(
-                "raw",
-                enc.encode(password),
-                { name: "PBKDF2" },
-                false,
-                ["deriveKey"]
-            );
-
-            const key = await window.crypto.subtle.deriveKey(
-                {
-                    name: "PBKDF2",
-                    salt: new Uint8Array(salt),
-                    iterations: 100000,
-                    hash: "SHA-256"
-                },
-                passwordKey,
-                { name: "AES-GCM", length: 256 },
-                false,
-                ["decrypt"]
-            );
-
-            const decryptedContent = await window.crypto.subtle.decrypt(
-                { name: "AES-GCM", iv: new Uint8Array(iv) },
-                key,
-                data
-            );
-
-            const dec = new TextDecoder("utf-8");
-            return dec.decode(decryptedContent);
-        }
-
-        async function attemptDecryptWithPassword(password, isAuto) {
-            let combinedData = [];
-            let hasError = false;
-
-            for (const url of ENCRYPTED_CSV_FILES) {
-                try {
-                    const res = await fetch(url);
-                    if (!res.ok) throw new Error("Archivo no encontrado");
-                    const arrayBuffer = await res.arrayBuffer();
-
-                    const decryptedText = await decryptBuffer(arrayBuffer, password);
-
-                    await new Promise((resolve) => {
-                        Papa.parse(decryptedText, {
-                            header: true,
-                            skipEmptyLines: true,
-                            complete: function(results) {
-                                if (results.data && results.data.length > 0) {
-                                    combinedData = combinedData.concat(processRawData(results.data, url));
-                                }
-                                resolve();
-                            }
-                        });
-                    });
-                } catch (err) {
-                    hasError = true;
-                    console.warn("Error descifrando:", url, err);
-                    break;
-                }
-            }
-
-            if (!hasError && combinedData.length > 0) {
-                localStorage.setItem(STORAGE_KEY, password);
-                finishUnlock(combinedData);
-            } else {
-                localStorage.removeItem(STORAGE_KEY);
-                if (isAuto) {
-                    promptForPassword();
-                } else {
-                    alert("Contraseña incorrecta o los archivos no se han podido descifrar.");
-                }
-            }
-        }
-
-        function finishUnlock(data) {
-            productDatabase = data;
-            document.getElementById('modal-password').classList.add('hidden');
-            if (document.getElementById('search-input').value.trim().length > 0) {
-                handleSearchInput();
-            }
-        }
-
-        function cleanMojibake(str) {
-            if (!str || typeof str !== 'string') return str;
-            let cur = str;
-            for (let i = 0; i < 4; i++) {
-                if (cur.includes('Ã') || cur.includes('Â')) {
-                    try {
-                        let decoded = decodeURIComponent(escape(cur));
-                        if (decoded && decoded !== cur) cur = decoded;
-                        else break;
-                    } catch (e) { break; }
-                } else break;
-            }
-            return cur
-                .replace(/ï¿½/g, 'Á').replace(/Ã‘/g, 'Ñ').replace(/Ã“/g, 'Ó').replace(/Ãš/g, 'Ú')
-                .replace(/Ã /g, 'Á').replace(/Ã‰/g, 'É').replace(/Ã /g, 'Í').replace(/Ã³/g, 'ó')
-                .replace(/Ãº/g, 'ú').replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
-                .replace(/Ã±/g, 'ñ').replace(/\x81/g, 'Á').replace(/\x82/g, 'Á').replace(/\x8d/g, 'Í')
-                .replace(/\x93/g, 'Ó').replace(/\x9a/g, 'Ú').replace(/Â/g, '').replace(/\u00A0/g, ' ')
-                .replace(/\s+/g, ' ').trim();
-        }
-
-        function convertSpanishWordsToDigits(str) {
-            if (!str || typeof str !== 'string') return '';
-            const units = {'cero': 0, 'uno': 1, 'un': 1, 'una': 1, 'dos': 2, 'tres': 3, 'cuatro': 4, 'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9, 'diez': 10, 'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14, 'quince': 15, 'dieciséis': 16, 'dieciseis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19, 'veinte': 20, 'veintiuno': 21, 'veintidós': 22, 'veintidos': 22, 'veintitrés': 23, 'veintitres': 23, 'veinticuatro': 24, 'veinticinco': 25, 'veintiséis': 26, 'veintiseis': 26, 'veintisiete': 27, 'veintiocho': 28, 'veintinueve': 29};
-            const tens = {'treinta': 30, 'cuarenta': 40, 'cincuenta': 50, 'sesenta': 60, 'setenta': 70, 'ochenta': 80, 'noventa': 90};
-            const hundreds = {'cien': 100, 'ciento': 100, 'doscientos': 200, 'doscientas': 200, 'trescientos': 300, 'trescientas': 300, 'cuatrocientos': 400, 'cuatrocientas': 400, 'quinientos': 500, 'quinientas': 500, 'seiscientos': 600, 'seiscientas': 600, 'setecientos': 700, 'setecientas': 700, 'ochocientos': 800, 'ochocientas': 800, 'novecientos': 900, 'novecientas': 900};
-
-            let cleanText = str.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ");
-            let words = cleanText.split(/\s+/).filter(w => w.length > 0);
-            let newWords = [];
-            let i = 0;
-
-            while (i < words.length) {
-                let w = words[i];
-                let val = 0;
-                let hasNum = false;
-
-                if (hundreds.hasOwnProperty(w)) { val += hundreds[w]; hasNum = true; i++; if (i < words.length) w = words[i]; }
-                if (tens.hasOwnProperty(w)) {
-                    val += tens[w]; hasNum = true; i++;
-                    if (i < words.length && words[i] === 'y') { i++; if (i < words.length && units.hasOwnProperty(words[i])) { val += units[words[i]]; i++; } }
-                    else if (i < words.length && units.hasOwnProperty(words[i])) { val += units[words[i]]; i++; }
-                } else if (units.hasOwnProperty(w)) { val += units[w]; hasNum = true; i++; }
-
-                if (hasNum) newWords.push(String(val));
-                else { newWords.push(words[i]); i++; }
-            }
-            return newWords.join(' ').replace(/(?<=\b\d)\s+(?=\d\b)/g, '');
-        }
-
-        function processRawData(data, sourceName) {
-            const isAppleSource = sourceName.toLowerCase().includes('apple');
-            return data.map(row => {
-                const item = {};
-                for (let key in row) {
-                    let val = row[key] ? String(row[key]).trim() : '';
-                    if (val.includes('e+') || val.includes('E+')) {
-                        const num = Number(val);
-                        if (!isNaN(num)) val = num.toLocaleString('fullwide', {useGrouping:false});
-                    }
-                    if (val.endsWith('.0')) val = val.slice(0, -2);
-                    val = cleanMojibake(val);
-                    item[key.trim()] = val;
-                }
-                if (!item.MARCA || item.MARCA.trim() === '') {
-                    const desc = (item.DESCRIPCION || '').toUpperCase();
-                    if (isAppleSource || desc.includes('APPLE') || desc.includes('IPHONE') || desc.includes('IPAD') || desc.includes('MACBOOK') || desc.includes('AIRPODS') || desc.includes('WATCH')) {
-                        item.MARCA = 'APPLE';
-                    } else item.MARCA = 'GENERAL';
-                }
-                item._color = item.COLOR || '';
-                item._capacidad = item.CAPACIDAD || '';
-                item._pantalla = item.PANTALLA || item.TAM || item.CAJA || '';
-                item._modelo_ref = item.MOD || item.DIBUJO || '';
-                item._precio = item['PVP TARIFA'] ? (item['PVP TARIFA'] + ' €') : '';
-                return item;
-            });
-        }
-
-        function handleFileUpload(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-
-            let loadedCount = 0;
-            let combinedData = [];
-
-            Array.from(files).forEach(file => {
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    encoding: "UTF-8",
-                    complete: function(results) {
-                        if (results.data && results.data.length > 0) {
-                            combinedData = combinedData.concat(processRawData(results.data, file.name));
-                        }
-                        loadedCount++;
-                        if (loadedCount === files.length) {
-                            productDatabase = combinedData;
-                            if (document.getElementById('search-input').value.trim().length > 0) {
-                                handleSearchInput();
-                            }
-                        }
-                    }
-                });
-            });
-        }
-
-        function navToSearch() {
-            if (window.history.state && window.history.state.view === 'product') {
-                window.history.back();
-            } else {
-                renderSearchView();
-            }
-        }
-
-        function renderSearchView() {
-            document.getElementById('view-product').classList.add('hidden');
-            document.getElementById('view-search').classList.remove('hidden');
-            document.getElementById('btn-back').classList.add('hidden');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function navToProduct(itemIndex) {
-            history.pushState({ view: 'product', productIndex: itemIndex }, '');
-            renderProductView(itemIndex);
-        }
-
-        function renderProductView(itemIndex) {
-            const item = currentResults[itemIndex];
-            if (!item) return;
-
-            document.getElementById('prod-marca').innerText = item.MARCA || 'GENERAL';
-            document.getElementById('prod-descripcion').innerText = item.DESCRIPCION || 'Sin descripción';
-
-            const specsContainer = document.getElementById('prod-quick-specs');
-            specsContainer.innerHTML = '';
-            const badges = [
-                { label: 'Color', val: item._color, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-                { label: 'Capacidad', val: item._capacidad, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                { label: 'Tamaño/Pantalla', val: item._pantalla ? (item._pantalla.includes('"') || item._pantalla.toLowerCase().includes('mm') ? item._pantalla : item._pantalla + '"') : '', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-                { label: 'Precio', val: item._precio, color: 'bg-amber-50 text-amber-700 border-amber-200' },
-                { label: 'Ref/Modelo', val: item._modelo_ref, color: 'bg-gray-100 text-gray-700 border-gray-200' }
-            ];
-
-            badges.forEach(b => {
-                if (b.val) {
-                    const span = document.createElement('span');
-                    span.className = `px-3 py-1 rounded-lg text-xs font-semibold border ${b.color}`;
-                    span.innerText = `${b.label}: ${b.val}`;
-                    specsContainer.appendChild(span);
-                }
-            });
-
-            const eanContainer = document.getElementById('ean-buttons-container');
-            eanContainer.innerHTML = '';
-            let hasCode = false;
-
-            const eanVal = item.EAN || item.EAN2;
-            if (eanVal && eanVal.trim() !== '') {
-                hasCode = true;
-                const card = document.createElement('div');
-                card.className = "p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-col space-y-2";
-                card.innerHTML = `
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-gray-500">Código EAN (Barras)</span>
-                        <span class="text-xs font-mono font-semibold text-gray-800">${eanVal}</span>
-                    </div>
-                    <button onclick="showBarcode('${eanVal}', 'Código EAN')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white border border-gray-300 text-indigo-700 rounded-lg text-xs font-semibold">
-                        <i data-lucide="barcode" class="w-4 h-4"></i><span>Generar Código de Barras</span>
-                    </button>`;
-                eanContainer.appendChild(card);
-            }
-
-            const eaniVal = item.EANI;
-            if (eaniVal && eaniVal.trim() !== '') {
-                hasCode = true;
-                const card = document.createElement('div');
-                card.className = "p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-col space-y-2";
-                card.innerHTML = `
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-gray-500">Código EANI (QR)</span>
-                        <span class="text-xs font-mono font-semibold text-gray-800">${eaniVal}</span>
-                    </div>
-                    <button onclick="showQRCode('${eaniVal}', 'Código EANI')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white border border-gray-300 text-indigo-700 rounded-lg text-xs font-semibold">
-                        <i data-lucide="qr-code" class="w-4 h-4"></i><span>Generar Código QR</span>
-                    </button>`;
-                eanContainer.appendChild(card);
-            }
-
-            if (!hasCode) eanContainer.innerHTML = `<p class="text-xs text-gray-400 italic col-span-2">No hay códigos EAN o EANI disponibles.</p>`;
-
-            const detailsTable = document.getElementById('prod-details-table');
-            detailsTable.innerHTML = '';
-            for (const [key, val] of Object.entries(item)) {
-                if (key.startsWith('_') || !val) continue;
-                const row = document.createElement('div');
-                row.className = "flex flex-col sm:flex-row px-5 py-3 sm:items-center hover:bg-gray-50/80 transition";
-                let valHTML = `<span class="text-gray-900 font-medium">${val}</span>`;
-                if (val.startsWith('http://') || val.startsWith('https://')) {
-                    valHTML = `<a href="${val}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1.5 text-indigo-600 hover:underline"><span>${val}</span><i data-lucide="external-link" class="w-3.5 h-3.5 flex-shrink-0"></i></a>`;
-                }
-                row.innerHTML = `<div class="w-full sm:w-1/3 text-xs font-semibold text-gray-500 uppercase mb-1 sm:mb-0">${key}</div><div class="w-full sm:w-2/3 text-sm">${valHTML}</div>`;
-                detailsTable.appendChild(row);
-            }
-
-            lucide.createIcons();
-            document.getElementById('view-search').classList.add('hidden');
-            document.getElementById('view-product').classList.remove('hidden');
-            document.getElementById('btn-back').classList.remove('hidden');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function handleSearchKeyDown(event) { if (event.key === 'Enter') event.target.blur(); }
-
-        function handleSearchInput() {
-            const query = document.getElementById('search-input').value.trim();
-            const clearBtn = document.getElementById('btn-clear-search');
-            if (query.length > 0) { 
-                clearBtn.classList.remove('hidden'); 
-                performSearch(query); 
-            } else { 
-                clearBtn.classList.add('hidden'); 
-                resetSearch(); 
-            }
-        }
-
-        function clearSearch() { 
-            document.getElementById('search-input').value = ''; 
-            handleSearchInput(); 
-        }
-
-        function resetSearch() { 
-            currentResults = []; 
-            document.getElementById('results-list').innerHTML = ''; 
-            document.getElementById('results-header').classList.add('hidden'); 
-            document.getElementById('empty-state').classList.remove('hidden'); 
-            renderFrequentSearches(); 
-        }
-
-        function performSearch(query) {
-            if (!productDatabase || productDatabase.length === 0) return;
-
-            document.getElementById('frequent-searches-container').classList.add('hidden');
-
-            clearTimeout(searchDebounceTimer);
-            if (query.trim() !== '*') {
-                searchDebounceTimer = setTimeout(() => {
-                    recordSearchTerm(query);
-                }, 800);
-            }
-
-            if (query.trim() === '*') {
-                currentResults = [...productDatabase];
-                renderResults('*');
-                return;
-            }
-
-            const terms = query.toLowerCase().split(/\s+/).filter(t => t.trim().length > 0 && t !== '*');
-            if (terms.length === 0) { 
-                currentResults = [...productDatabase];
-                renderResults(query); 
-                return; 
-            }
-
-            const scored = [];
-            for (let i = 0; i < productDatabase.length; i++) {
-                const item = productDatabase[i];
-                const fullText = Object.values(item).filter(val => val != null).map(val => String(val).toLowerCase()).join(' ');
-                if (terms.every(term => fullText.includes(term))) {
-                    let score = 0;
-                    const desc = (item.DESCRIPCION || '').toLowerCase();
-                    terms.forEach(term => { if (desc.startsWith(term)) score += 50; else if (desc.includes(term)) score += 20; });
-                    scored.push({ item, score });
-                }
-            }
-            scored.sort((a, b) => b.score - a.score);
-            currentResults = scored.map(s => s.item);
-            renderResults(query);
-        }
-
-        function renderResults(query) {
-            const list = document.getElementById('results-list');
-            const emptyState = document.getElementById('empty-state');
-            const resultsHeader = document.getElementById('results-header');
-            list.innerHTML = '';
-
-            if (currentResults.length === 0) {
-                emptyState.classList.remove('hidden'); 
-                resultsHeader.classList.add('hidden');
-                emptyState.querySelector('h3').innerText = 'No se encontraron resultados';
-                emptyState.querySelector('p').innerText = `No hay ningún registro que coincida con "${query}"`;
-                return;
-            }
-
-            emptyState.classList.add('hidden'); 
-            resultsHeader.classList.remove('hidden');
-            document.getElementById('results-count').innerText = currentResults.length;
-            document.getElementById('search-query-display').innerText = query === '*' ? 'Catálogo completo (*)' : `"${query}"`;
-
-            const limit = query === '*' ? currentResults.length : Math.min(currentResults.length, 100);
-            for (let i = 0; i < limit; i++) {
-                const item = currentResults[i];
-                const card = document.createElement('div');
-                card.className = "bg-white p-3 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-400 transition cursor-pointer flex items-center justify-between gap-2";
-                card.onclick = () => navToProduct(i);
-
-                card.innerHTML = `
-                    <div class="space-y-0.5 flex-grow min-w-0">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-[10px] font-bold px-1.5 py-0.2 bg-gray-100 text-gray-700 rounded uppercase">${item.MARCA || 'GENERAL'}</span>
-                            ${item._color ? `<span class="text-xs text-gray-500 truncate">${item._color}</span>` : ''}
-                            ${item._capacidad ? `<span class="text-xs text-gray-500 font-medium">${item._capacidad}</span>` : ''}
-                            ${item._pantalla ? `<span class="text-xs text-gray-400">${item._pantalla}</span>` : ''}
-                            ${item._precio ? `<span class="text-xs font-semibold text-emerald-600">${item._precio}</span>` : ''}
-                        </div>
-                        <h4 class="font-semibold text-sm text-gray-900 truncate leading-snug">${item.DESCRIPCION || 'Sin descripción'}</h4>
-                        ${item.EAN ? `<p class="text-[11px] font-mono text-gray-400 truncate">EAN: ${item.EAN}</p>` : ''}
-                    </div>
-                    <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        ${item.EANI ? `<button onclick="event.stopPropagation(); showQRCode('${item.EANI}', 'Código EANI')" class="p-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg flex items-center justify-center"><i data-lucide="qr-code" class="w-4 h-4"></i></button>` : ''}
-                        <i data-lucide="chevron-right" class="w-4 h-4 text-indigo-600"></i>
-                    </div>`;
-                list.appendChild(card);
-            }
-            lucide.createIcons();
-        }
-
-        function toggleVoiceSearch() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) { alert("Navegador no compatible con voz."); return; }
-            if (isListening && speechRecognition) { speechRecognition.stop(); return; }
-
-            speechRecognition = new SpeechRecognition();
-            speechRecognition.lang = 'es-ES';
-            speechRecognition.continuous = false;
-            speechRecognition.interimResults = true;
-
-            const micBtn = document.getElementById('btn-voice-search');
-            const searchInput = document.getElementById('search-input');
-
-            speechRecognition.onstart = function() {
-                isListening = true;
-                micBtn.classList.remove('bg-gray-100', 'text-gray-600');
-                micBtn.classList.add('bg-red-500', 'text-white', 'animate-pulse');
-                searchInput.placeholder = 'Escuchando...';
-            };
-
-            speechRecognition.onresult = function(event) {
-                let transcript = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) transcript += event.results[i][0].transcript;
-                searchInput.value = convertSpanishWordsToDigits(transcript);
-                handleSearchInput();
-            };
-
-            speechRecognition.onerror = function() { stopVoiceUI(); };
-            speechRecognition.onend = function() { stopVoiceUI(); };
-            speechRecognition.start();
-        }
-
-        function stopVoiceUI() {
-            isListening = false;
-            const micBtn = document.getElementById('btn-voice-search');
-            const searchInput = document.getElementById('search-input');
-            if (micBtn) { micBtn.classList.remove('bg-red-500', 'text-white'); micBtn.classList.add('bg-gray-100', 'text-gray-600'); }
-            if (searchInput) searchInput.placeholder = 'Escribe * para ver todo, o busca (ej: S26, 128)...';
-        }
-
-        function startScanner() {
-            document.getElementById('modal-scanner').classList.remove('hidden');
-            html5QrCode = new Html5Qrcode("interactive-reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 }, onScanSuccess, onScanFailure).catch(err => { alert("Error cámara: " + err); stopScanner(); });
-        }
-
-        function onScanSuccess(decodedText) { stopScanner(); document.getElementById('search-input').value = decodedText; performSearch(decodedText); }
-        function onScanFailure() {}
-
-        function stopScanner() {
-            if (html5QrCode) { html5QrCode.stop().then(() => { html5QrCode.clear(); html5QrCode = null; }).catch(err => console.error(err)); }
-            document.getElementById('modal-scanner').classList.add('hidden');
-        }
-
-        function showBarcode(codeValue, label) {
-            const modal = document.getElementById('modal-code');
-            document.getElementById('modal-code-type').innerText = 'CÓDIGO DE BARRAS';
-            document.getElementById('modal-code-title').innerText = label;
-            document.getElementById('modal-code-val').innerText = codeValue;
-            const barcodeSvg = document.getElementById('barcode-svg');
-            const qrcodeDiv = document.getElementById('qrcode-div');
-            qrcodeDiv.classList.add('hidden'); barcodeSvg.classList.remove('hidden'); qrcodeDiv.innerHTML = '';
-
-            try {
-                let format = "CODE128";
-                if (/^\d{13}$/.test(codeValue)) format = "EAN13";
-                else if (/^\d{8}$/.test(codeValue)) format = "EAN8";
-                JsBarcode("#barcode-svg", codeValue, { format: format, lineColor: "#000", width: 2, height: 80, displayValue: true, fontSize: 14, margin: 10 });
-            } catch(e) {
-                JsBarcode("#barcode-svg", codeValue, { format: "CODE128", lineColor: "#000", width: 2, height: 80, displayValue: true, fontSize: 14, margin: 10 });
-            }
-            modal.classList.remove('hidden');
-        }
-
-        function showQRCode(codeValue, label) {
-            const modal = document.getElementById('modal-code');
-            document.getElementById('modal-code-type').innerText = 'CÓDIGO QR';
-            document.getElementById('modal-code-title').innerText = label;
-            document.getElementById('modal-code-val').innerText = codeValue;
-            const barcodeSvg = document.getElementById('barcode-svg');
-            const qrcodeDiv = document.getElementById('qrcode-div');
-            barcodeSvg.classList.add('hidden'); qrcodeDiv.classList.remove('hidden'); qrcodeDiv.innerHTML = '';
-            new QRCode(qrcodeDiv, { text: codeValue, width: 160, height: 160, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H });
-            modal.classList.remove('hidden');
-        }
-
-        function closeCodeModal() { document.getElementById('modal-code').classList.add('hidden'); }
-    </script>
-</body>
+	<body translate="no">
+		<div id="cuerpo">
+			<h2>Simulador PlanMy iPhone</h2>
+			
+			<div id="upload-container" class="loading-card">
+				<div id="loading-message">
+					<span style="font-weight:600; color:var(--text-primary);">Cargando base de datos protegida...</span><br>
+					<small style="color:var(--text-secondary); display:block; margin-top:5px;">Descifrando 'PVP y RV.enc'...</small>
+				</div>
+			</div>
+
+			<div class="simulador-grid" id="workspace" style="display: none;">
+				<div class="col-izquierda">
+					<div class="section-card">
+						<div class="section-title">Gama iPhone</div>
+						<div id="list-container"></div>
+					</div>
+					
+					<div id="capacidad-section" class="section-card" style="display: none;">
+						<div class="section-title">Capacidad</div>
+						<div id="capacidad-grid" class="button-grid"></div>
+					</div>
+				</div>
+
+				<div class="col-derecha">
+					<div id="resultado">
+						<div class="placeholder-resultado">
+							Por favor, selecciona un modelo y su almacenamiento para visualizar el desglose del plan financiero.
+						</div>
+					</div>
+				</div>
+
+				<div class="aviso-footer">
+					<hr>
+					<b>Los valores reflejados son meramente aproximados y orientativos.</b>
+					<br>No imprimas esta pantalla.
+					<span class="firma-autor">Ben A. M. © <span id="rango-fechas">2026</span></span>
+				</div>
+			</div>
+		</div>
+
+		<!-- MODAL SOLICITUD DE CONTRASEÑA -->
+		<div id="password-modal" class="modal-overlay">
+			<div class="modal-box" onclick="event.stopPropagation()">
+				<h4>Base de Datos Protegida</h4>
+				<p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;">Introduce la contraseña para descifrar las tarifas.</p>
+				<div id="pass-error-msg" class="error-msg"></div>
+				<input type="password" id="modal-pass-input" class="modal-input" placeholder="Contraseña de acceso">
+				<div class="modal-buttons">
+					<button class="modal-btn modal-btn-confirm" onclick="confirmarPasswordModal()">Desbloquear</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- MODAL CAMBIO DE PRECIO -->
+		<div id="custom-price-modal" class="modal-overlay" onclick="cerrarModalPrecio()">
+			<div class="modal-box" onclick="event.stopPropagation()">
+				<h4>Introduce el nuevo PVP</h4>
+				<input type="number" id="modal-price-input" class="modal-input" placeholder="Importe en €" min="0.01" step="0.01">
+				<div class="modal-buttons">
+					<button class="modal-btn modal-btn-cancel" onclick="cerrarModalPrecio()">Cancelar</button>
+					<button class="modal-btn modal-btn-confirm" onclick="confirmarNuevoPrecio()">Aplicar</button>
+				</div>
+			</div>
+		</div>
+	</body>
 </html>
