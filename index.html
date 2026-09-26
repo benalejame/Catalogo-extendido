@@ -182,8 +182,8 @@
     </div>
 
     <!-- MODAL: CAMERA SCANNER -->
-    <div id="modal-scanner" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
+    <div id="modal-scanner" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden" onclick="if(event.target === this) stopScanner()">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
             <div class="p-4 bg-indigo-600 text-white flex items-center justify-between">
                 <div class="flex items-center space-x-2">
                     <i data-lucide="camera" class="w-5 h-5"></i>
@@ -200,20 +200,32 @@
         </div>
     </div>
 
-    <!-- MODAL: BARCODE / QR DISPLAY -->
-    <div id="modal-code" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 relative">
-            <button onclick="closeCodeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1"><i data-lucide="x" class="w-6 h-6"></i></button>
+    <!-- MODAL: BARCODE / QR DISPLAY (Se cierra al pulsar fuera) -->
+    <div id="modal-code" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden" onclick="if(event.target === this) closeCodeModal()">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-3 relative" onclick="event.stopPropagation()">
+            <button onclick="closeCodeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+
             <div>
-                <span id="modal-code-type" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 uppercase tracking-wider mb-1">CÓDIGO DE BARRAS</span>
-                <h3 id="modal-code-title" class="text-lg font-bold text-gray-900">EAN-13</h3>
-                <p id="modal-code-val" class="text-sm font-mono text-gray-600 mt-0.5"></p>
+                <span id="modal-code-type" class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 uppercase tracking-wider mb-1.5">
+                    CÓDIGO QR
+                </span>
+                <h3 id="modal-code-title" class="text-base font-bold text-gray-900 leading-snug px-4"></h3>
+                <p id="modal-code-val" class="text-xs font-mono text-gray-500 mt-0.5"></p>
+                
+                <!-- Badges de Color y Capacidad -->
+                <div id="modal-code-badges" class="flex flex-wrap items-center justify-center gap-1.5 pt-2"></div>
             </div>
+
             <div class="py-4 px-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center min-h-[160px]">
                 <svg id="barcode-svg" class="hidden max-w-full h-auto"></svg>
                 <div id="qrcode-div" class="hidden"></div>
             </div>
-            <button onclick="closeCodeModal()" class="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold">Cerrar</button>
+
+            <button onclick="closeCodeModal()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition active:scale-98">
+                Cerrar
+            </button>
         </div>
     </div>
 
@@ -262,7 +274,6 @@
             }
         }
 
-        // Gestión de Búsquedas Frecuentes
         function getSearchFrequencies() {
             try {
                 return JSON.parse(localStorage.getItem(SEARCH_FREQ_KEY)) || {};
@@ -310,7 +321,6 @@
                 const tag = document.createElement('div');
                 tag.className = 'inline-flex items-center bg-gray-100 hover:bg-indigo-50 text-gray-700 hover:text-indigo-600 rounded-lg text-xs font-medium pl-2.5 pr-1.5 py-1 transition group cursor-pointer';
 
-                // Texto del término
                 const textSpan = document.createElement('span');
                 textSpan.innerText = term;
                 textSpan.onclick = () => {
@@ -319,7 +329,6 @@
                     handleSearchInput();
                 };
 
-                // Icono X para eliminar la etiqueta
                 const delBtn = document.createElement('button');
                 delBtn.type = 'button';
                 delBtn.title = `Eliminar "${term}"`;
@@ -611,7 +620,7 @@
                         <span class="text-xs font-bold text-gray-500">Código EAN (Barras)</span>
                         <span class="text-xs font-mono font-semibold text-gray-800">${eanVal}</span>
                     </div>
-                    <button onclick="showBarcode('${eanVal}', 'Código EAN')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white border border-gray-300 text-indigo-700 rounded-lg text-xs font-semibold">
+                    <button onclick="showBarcode('${eanVal}', 'Código EAN')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white border border-gray-300 text-indigo-700 rounded-lg text-xs font-semibold transition active:scale-98">
                         <i data-lucide="barcode" class="w-4 h-4"></i><span>Generar Código de Barras</span>
                     </button>`;
                 eanContainer.appendChild(card);
@@ -627,7 +636,7 @@
                         <span class="text-xs font-bold text-gray-500">Código EANI (QR)</span>
                         <span class="text-xs font-mono font-semibold text-gray-800">${eaniVal}</span>
                     </div>
-                    <button onclick="showQRCode('${eaniVal}', 'Código EANI')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white border border-gray-300 text-indigo-700 rounded-lg text-xs font-semibold">
+                    <button onclick="showQRCode('${eaniVal}', 'Código EANI')" class="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-white border border-gray-300 text-indigo-700 rounded-lg text-xs font-semibold transition active:scale-98">
                         <i data-lucide="qr-code" class="w-4 h-4"></i><span>Generar Código QR</span>
                     </button>`;
                 eanContainer.appendChild(card);
@@ -670,18 +679,8 @@
             }
         }
 
-        function clearSearch() { 
-            document.getElementById('search-input').value = ''; 
-            handleSearchInput(); 
-        }
-
-        function resetSearch() { 
-            currentResults = []; 
-            document.getElementById('results-list').innerHTML = ''; 
-            document.getElementById('results-header').classList.add('hidden'); 
-            document.getElementById('empty-state').classList.remove('hidden'); 
-            renderFrequentSearches(); 
-        }
+        function clearSearch() { document.getElementById('search-input').value = ''; handleSearchInput(); }
+        function resetSearch() { currentResults = []; document.getElementById('results-list').innerHTML = ''; document.getElementById('results-header').classList.add('hidden'); document.getElementById('empty-state').classList.remove('hidden'); renderFrequentSearches(); }
 
         function performSearch(query) {
             if (!productDatabase || productDatabase.length === 0) return;
@@ -763,12 +762,29 @@
                         ${item.EAN ? `<p class="text-[11px] font-mono text-gray-400 truncate">EAN: ${item.EAN}</p>` : ''}
                     </div>
                     <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        ${item.EANI ? `<button onclick="event.stopPropagation(); showQRCode('${item.EANI}', 'Código EANI')" class="p-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg flex items-center justify-center"><i data-lucide="qr-code" class="w-4 h-4"></i></button>` : ''}
+                        ${(item.EANI || item.EAN) ? `
+                            <button onclick="event.stopPropagation(); showQRCodeFromItem(${i})" title="Ver QR del artículo" class="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-lg flex items-center justify-center transition active:scale-95">
+                                <i data-lucide="qr-code" class="w-4 h-4"></i>
+                            </button>
+                        ` : ''}
                         <i data-lucide="chevron-right" class="w-4 h-4 text-indigo-600"></i>
                     </div>`;
                 list.appendChild(card);
             }
             lucide.createIcons();
+        }
+
+        // Abre el modal QR desde la lista con la descripción, capacidad y color, ocultando el número
+        function showQRCodeFromItem(itemIndex) {
+            const item = currentResults[itemIndex];
+            if (!item) return;
+
+            const codeVal = item.EANI || item.EAN || '';
+            showQRCode(codeVal, item.DESCRIPCION || 'Detalle del Producto', {
+                color: item._color || '',
+                capacidad: item._capacidad || '',
+                hideNumber: true
+            });
         }
 
         function toggleVoiceSearch() {
@@ -829,10 +845,18 @@
             const modal = document.getElementById('modal-code');
             document.getElementById('modal-code-type').innerText = 'CÓDIGO DE BARRAS';
             document.getElementById('modal-code-title').innerText = label;
-            document.getElementById('modal-code-val').innerText = codeValue;
+            
+            const valElem = document.getElementById('modal-code-val');
+            valElem.innerText = codeValue;
+            valElem.classList.remove('hidden');
+
+            document.getElementById('modal-code-badges').innerHTML = '';
+
             const barcodeSvg = document.getElementById('barcode-svg');
             const qrcodeDiv = document.getElementById('qrcode-div');
-            qrcodeDiv.classList.add('hidden'); barcodeSvg.classList.remove('hidden'); qrcodeDiv.innerHTML = '';
+            qrcodeDiv.classList.add('hidden'); 
+            barcodeSvg.classList.remove('hidden'); 
+            qrcodeDiv.innerHTML = '';
 
             try {
                 let format = "CODE128";
@@ -845,19 +869,59 @@
             modal.classList.remove('hidden');
         }
 
-        function showQRCode(codeValue, label) {
+        function showQRCode(codeValue, title, options = {}) {
             const modal = document.getElementById('modal-code');
             document.getElementById('modal-code-type').innerText = 'CÓDIGO QR';
-            document.getElementById('modal-code-title').innerText = label;
-            document.getElementById('modal-code-val').innerText = codeValue;
+            document.getElementById('modal-code-title').innerText = title;
+
+            const valElem = document.getElementById('modal-code-val');
+            if (options.hideNumber) {
+                valElem.innerText = '';
+                valElem.classList.add('hidden');
+            } else {
+                valElem.innerText = codeValue;
+                valElem.classList.remove('hidden');
+            }
+
+            // Inserción de badges informativos (Color, Capacidad)
+            const badgesBox = document.getElementById('modal-code-badges');
+            badgesBox.innerHTML = '';
+
+            if (options.color) {
+                const sColor = document.createElement('span');
+                sColor.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
+                sColor.innerText = `Color: ${options.color}`;
+                badgesBox.appendChild(sColor);
+            }
+
+            if (options.capacidad) {
+                const sCap = document.createElement('span');
+                sCap.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200';
+                sCap.innerText = `Capacidad: ${options.capacidad}`;
+                badgesBox.appendChild(sCap);
+            }
+
             const barcodeSvg = document.getElementById('barcode-svg');
             const qrcodeDiv = document.getElementById('qrcode-div');
-            barcodeSvg.classList.add('hidden'); qrcodeDiv.classList.remove('hidden'); qrcodeDiv.innerHTML = '';
-            new QRCode(qrcodeDiv, { text: codeValue, width: 160, height: 160, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H });
+            barcodeSvg.classList.add('hidden'); 
+            qrcodeDiv.classList.remove('hidden'); 
+            qrcodeDiv.innerHTML = '';
+
+            new QRCode(qrcodeDiv, { 
+                text: codeValue, 
+                width: 170, 
+                height: 170, 
+                colorDark: "#000000", 
+                colorLight: "#ffffff", 
+                correctLevel: QRCode.CorrectLevel.H 
+            });
+
             modal.classList.remove('hidden');
         }
 
-        function closeCodeModal() { document.getElementById('modal-code').classList.add('hidden'); }
+        function closeCodeModal() { 
+            document.getElementById('modal-code').classList.add('hidden'); 
+        }
     </script>
 </body>
 </html>
